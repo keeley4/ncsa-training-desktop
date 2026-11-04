@@ -24,7 +24,7 @@ Learn@NCSA (Moodle)  --read-only web service-->  harness (Python)  -->  contract
 | `contract/openapi.yaml` | API contract (OpenAPI 3.1). Phase 1 catalog endpoints, later phases as `x-phase` stubs |
 | `catalog/shelves.yaml` | Shelf curation for the real site (course ids from Learn@NCSA) |
 | `harness/` | Moodle client, catalog builder, contract validation, stores (files, Postgres), API, CLI |
-| `web/` | Front door (HTML/CSS/JS, no build step, no third-party scripts) |
+| `web/` | Front door (HTML/CSS/JS, no build step, no third-party scripts): `index.html` (shelves, side sheet, search, filters, My desktop) and `curation.html` (catalog health for curators) |
 | `fixtures/` | Synthetic Moodle responses and shelves for tests and the dev stack |
 | `dev/` | Local Docker stack: dev Moodle 4.5.15 (PHP 8.3, MariaDB 10.11, production limits), Postgres, API, web |
 | `docs/adr/` | Decisions: stack, hosting, identity, event stream, UI model |
@@ -38,8 +38,11 @@ Learn@NCSA (Moodle)  --read-only web service-->  harness (Python)  -->  contract
 
 ```bash
 pip install -r requirements-dev.txt
+python -m playwright install chromium       # for the browser + accessibility tests in tests/e2e
 pytest -q                                   # set TEST_DATABASE_URL to also test the Postgres store
 ```
+
+The browser tests drive the front door by keyboard, check routing, search, filters and pins, and run axe accessibility checks in light and dark mode at desktop and phone widths.
 
 **Build from fixtures (no Moodle needed):**
 
@@ -69,6 +72,15 @@ docker compose -f dev/docker-compose.yml up --build
 # front door http://localhost:8081 · API http://localhost:8000/api/docs · Moodle http://moodle.localhost:8080
 ```
 
+## Using the front door
+
+- **Shelves** are learning tracks; each tile opens a **side sheet** with the description, sessions or past years, tracks, and the launch link into Learn@NCSA.
+- **Links are shareable:** `#/tile/<id>` opens a sheet, `#/shelf/<id>` shows one track as a grid. The browser Back button closes the sheet.
+- **Keyboard:** `/` search · Tab moves between shelves · arrow keys move between tiles (up/down jumps shelves) · Enter opens · Esc closes or clears search.
+- **Filters:** Open to all · Courses · Programs. **Tracks** menu jumps to a track.
+- **My desktop:** pin tiles from the sheet; pins are saved in this browser only (sign-in comes in Phase 3).
+- **For curators:** `curation.html` lists build warnings, courses on no track, and courses missing a description or image, with links to edit them in Learn@NCSA.
+
 ## GitHub Pages setup
 
 1. Settings → Pages → Source: **GitHub Actions**.
@@ -84,4 +96,4 @@ docker compose -f dev/docker-compose.yml up --build
 
 ## Status
 
-Phase 1 of the v0 plan. Next: Phase 2, the full desktop UI (side sheet, keyboard grid, live-session calendar, usability test).
+Phase 2 of the v0 plan (desktop catalog) is in place; the usability test is deferred. Next: Phase 3 (Globus sign-in, progress, enroll-on-launch) on an NCSA host.
