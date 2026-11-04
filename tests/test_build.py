@@ -6,6 +6,10 @@ import pytest
 
 from harness.__main__ import main
 
+from conftest import ROOT
+
+FIXTURE_SHELVES = str(ROOT / "fixtures" / "shelves.yaml")
+
 
 def test_static_layout(built_site):
     for rel in ("index.html", "app.js", "styles.css", "config.json", ".nojekyll",
@@ -27,14 +31,14 @@ def test_refuses_to_publish_a_secret(tmp_path, monkeypatch):
     monkeypatch.setenv("MOODLE_TOKEN", "Summer School 2025")
     with pytest.raises(SystemExit) as exc:
         main(["build", "--mode", "fixture", "--out", str(tmp_path / "o"),
-              "--shelves", "fixtures/shelves.yaml"])
+              "--shelves", FIXTURE_SHELVES])
     assert "secret" in str(exc.value)
 
 
 def test_fail_on_warnings(tmp_path):
     with pytest.raises(SystemExit) as exc:
         main(["build", "--mode", "fixture", "--out", str(tmp_path / "o"),
-              "--shelves", "fixtures/shelves.yaml", "--fail-on-warnings"])
+              "--shelves", FIXTURE_SHELVES, "--fail-on-warnings"])
     assert "Warnings present" in str(exc.value)
 
 
@@ -47,7 +51,7 @@ def test_live_mode_needs_token(tmp_path, monkeypatch):
 
 def test_real_shelves_file_parses():
     from harness.catalog import load_shelves, _ref_to_tile_id
-    cfg = load_shelves("catalog/shelves.yaml")
+    cfg = load_shelves(str(ROOT / "catalog" / "shelves.yaml"))
     refs = [r for s in cfg["shelves"] for r in s["tiles"]]
     assert len(cfg["shelves"]) == 8
     for r in refs:
