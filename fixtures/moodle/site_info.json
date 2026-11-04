@@ -1,0 +1,29 @@
+{
+ "sitename": "Learn@NCSA (dev)",
+ "username": "ncsahub_ws",
+ "firstname": "NCSA Hub",
+ "lastname": "Service",
+ "fullname": "NCSA Hub Service",
+ "lang": "en",
+ "userid": 3,
+ "siteurl": "https://moodle.example.org",
+ "userpictureurl": "",
+ "functions": [
+  {
+   "name": "core_webservice_get_site_info",
+   "version": "2024100700"
+  },
+  {
+   "name": "core_course_get_categories",
+   "version": "2024100700"
+  },
+  {
+   "name": "core_course_get_courses_by_field",
+   "version": "2024100700"
+  }
+ ],
+ "downloadfiles": 1,
+ "uploadfiles": 0,
+ "release": "4.5.15 (Build: 20261005)",
+ "version": "2024100715"
+}

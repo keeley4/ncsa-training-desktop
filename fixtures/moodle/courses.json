@@ -1,0 +1,241 @@
+{
+ "courses": [
+  {
+   "id": 1,
+   "fullname": "Learn@NCSA (dev)",
+   "displayname": "Learn@NCSA (dev)",
+   "shortname": "dev",
+   "categoryid": 0,
+   "categoryname": "",
+   "summary": "",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [],
+   "enrollmentmethods": [],
+   "sortorder": 1
+  },
+  {
+   "id": 2,
+   "fullname": "Intro to the Command Line",
+   "displayname": "Intro to the Command Line",
+   "shortname": "DEV2",
+   "categoryid": 2,
+   "categoryname": "Getting Started",
+   "summary": "<p>Learn the <b>shell</b> &amp; basic commands.</p><script>alert(1)</script><p>No prior experience needed.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [
+    {
+     "filename": "tile.png",
+     "filepath": "/",
+     "filesize": 1234,
+     "fileurl": "https://moodle.example.org/webservice/pluginfile.php/102/course/overviewfiles/tile.png",
+     "timemodified": 1700000000,
+     "mimetype": "image/png"
+    }
+   ],
+   "contacts": [
+    {
+     "id": 902,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "guest",
+    "self"
+   ],
+   "sortorder": 10002,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/102/course/generated/course.svg"
+  },
+  {
+   "id": 3,
+   "fullname": "Cluster Basics",
+   "displayname": "Cluster Basics",
+   "shortname": "DEV3",
+   "categoryid": 2,
+   "categoryname": "Getting Started",
+   "summary": "",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 903,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "self",
+    "manual"
+   ],
+   "sortorder": 10003,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/103/course/generated/course.svg"
+  },
+  {
+   "id": 4,
+   "fullname": "Intro to MPI",
+   "displayname": "Intro to MPI",
+   "shortname": "DEV4",
+   "categoryid": 3,
+   "categoryname": "Programming &amp; Performance",
+   "summary": "<p>Message passing for distributed-memory programs.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 904,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "self"
+   ],
+   "sortorder": 10004,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/104/course/generated/course.svg"
+  },
+  {
+   "id": 5,
+   "fullname": "Summer School 2024",
+   "displayname": "Summer School 2024",
+   "shortname": "DEV5",
+   "categoryid": 3,
+   "categoryname": "Programming &amp; Performance",
+   "summary": "<p>2024 cohort materials.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 905,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "manual"
+   ],
+   "sortorder": 10005,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/105/course/generated/course.svg"
+  },
+  {
+   "id": 6,
+   "fullname": "Summer School 2025",
+   "displayname": "Summer School 2025",
+   "shortname": "DEV6",
+   "categoryid": 3,
+   "categoryname": "Programming &amp; Performance",
+   "summary": "<p>2025 cohort materials.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [
+    {
+     "filename": "tile.png",
+     "filepath": "/",
+     "filesize": 1234,
+     "fileurl": "https://moodle.example.org/webservice/pluginfile.php/106/course/overviewfiles/tile.png",
+     "timemodified": 1700000000,
+     "mimetype": "image/png"
+    }
+   ],
+   "contacts": [
+    {
+     "id": 906,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "manual"
+   ],
+   "sortorder": 10006,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/106/course/generated/course.svg"
+  },
+  {
+   "id": 7,
+   "fullname": "Legacy Tutor",
+   "displayname": "Legacy Tutor",
+   "shortname": "DEV7",
+   "categoryid": 4,
+   "categoryname": "Archive",
+   "summary": "<p>In a hidden category.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 907,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "manual"
+   ],
+   "sortorder": 10007,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/107/course/generated/course.svg"
+  },
+  {
+   "id": 8,
+   "fullname": "Hidden Draft",
+   "displayname": "Hidden Draft",
+   "shortname": "DEV8",
+   "categoryid": 3,
+   "categoryname": "Programming &amp; Performance",
+   "summary": "<p>Not visible.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 908,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "manual"
+   ],
+   "sortorder": 10008,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/108/course/generated/course.svg",
+   "visible": 0
+  },
+  {
+   "id": 9,
+   "fullname": "Profiling Basics",
+   "displayname": "Profiling Basics",
+   "shortname": "DEV9",
+   "categoryid": 2,
+   "categoryname": "Getting Started",
+   "summary": "<p>Find the slow parts.</p>",
+   "summaryformat": 1,
+   "summaryfiles": [],
+   "overviewfiles": [],
+   "contacts": [
+    {
+     "id": 909,
+     "fullname": "Pat Example (teacher)"
+    }
+   ],
+   "enrollmentmethods": [
+    "guest"
+   ],
+   "sortorder": 10009,
+   "showactivitydates": true,
+   "showcompletionconditions": true,
+   "courseimage": "https://moodle.example.org/pluginfile.php/109/course/generated/course.svg"
+  }
+ ],
+ "warnings": []
+}

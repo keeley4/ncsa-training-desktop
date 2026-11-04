@@ -1,0 +1,38 @@
+[
+ {
+  "id": 1,
+  "name": "Category 1",
+  "idnumber": "",
+  "description": "",
+  "descriptionformat": 1,
+  "parent": 0,
+  "sortorder": 10000,
+  "coursecount": 0,
+  "depth": 1,
+  "path": "/1"
+ },
+ {
+  "id": 2,
+  "name": "Getting Started",
+  "idnumber": "",
+  "description": "",
+  "descriptionformat": 1,
+  "parent": 0,
+  "sortorder": 20000,
+  "coursecount": 3,
+  "depth": 1,
+  "path": "/2"
+ },
+ {
+  "id": 3,
+  "name": "Programming &amp; Performance",
+  "idnumber": "",
+  "description": "",
+  "descriptionformat": 1,
+  "parent": 0,
+  "sortorder": 30000,
+  "coursecount": 4,
+  "depth": 1,
+  "path": "/3"
+ }
+]
