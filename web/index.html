@@ -10,46 +10,61 @@
 </head>
 <body>
   <a class="skip" href="#main">Skip to courses</a>
-  <div class="banner" role="note">
-    Prototype. Course information comes from Learn@NCSA and may change.
-  </div>
+  <aside class="banner" aria-label="Prototype notice">Prototype. Course information comes from Learn@NCSA and may change.</aside>
+
   <header class="taskbar">
-    <div class="brand">
+    <a class="brand" href="#/" aria-label="NCSA Training home">
       <span class="brand-mark" aria-hidden="true">N</span>
-      <span>NCSA Training</span>
-    </div>
-    <form class="search" role="search" onsubmit="return false">
-      <label for="q" class="visually-hidden">Search courses</label>
-      <input id="q" type="search" placeholder="Search courses ( / )" autocomplete="off">
+      <span class="brand-name">NCSA Training</span>
+    </a>
+    <form class="search" role="search" id="search-form">
+      <label for="q" class="visually-hidden">Search courses and programs</label>
+      <input id="q" type="search" placeholder="Search ( / )" autocomplete="off" spellcheck="false">
     </form>
+    <div class="filters" role="group" aria-label="Filters">
+      <button type="button" class="chip" data-filter="open" aria-pressed="false">Open to all</button>
+      <button type="button" class="chip" data-filter="course" aria-pressed="false">Courses</button>
+      <button type="button" class="chip" data-filter="program" aria-pressed="false">Programs</button>
+    </div>
+    <details class="tracks" id="tracks">
+      <summary>Tracks</summary>
+      <ul id="tracks-list" class="tracks-list"></ul>
+    </details>
   </header>
 
   <main id="main" tabindex="-1">
+    <h1 class="visually-hidden">NCSA Training: courses and programs by track</h1>
     <p id="status" class="status" role="status" aria-live="polite">Loading the catalog…</p>
-    <section id="results" class="shelf" hidden aria-labelledby="results-title">
-      <h2 id="results-title">Search results</h2>
-      <ul class="tiles" id="results-list"></ul>
-    </section>
-    <div id="shelves"></div>
+    <div id="view"></div>
   </main>
 
-  <dialog id="sheet" aria-labelledby="sheet-title">
-    <form method="dialog" class="sheet-close"><button aria-label="Close">×</button></form>
-    <p id="sheet-type" class="badge"></p>
-    <h2 id="sheet-title"></h2>
-    <p id="sheet-meta" class="meta"></p>
-    <p id="sheet-summary"></p>
-    <div id="sheet-children" hidden>
-      <h3>Inside this program</h3>
-      <ul id="sheet-children-list"></ul>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-inner">
+      <div class="sheet-head">
+        <p id="sheet-type" class="badge"></p>
+        <button type="button" id="sheet-close" class="icon-btn" aria-label="Close">×</button>
+      </div>
+      <div id="sheet-art" class="sheet-art" aria-hidden="true"></div>
+      <h2 id="sheet-title" tabindex="-1"></h2>
+      <p id="sheet-meta" class="meta"></p>
+      <p id="sheet-summary" class="sheet-summary"></p>
+      <div id="sheet-children" hidden>
+        <h3 id="sheet-children-title">Inside this program</h3>
+        <ul id="sheet-children-list" class="children"></ul>
+      </div>
+      <p id="sheet-tracks" class="meta"></p>
+      <div class="sheet-actions">
+        <a id="sheet-launch" class="primary" target="_blank" rel="noopener"></a>
+        <button type="button" id="sheet-pin" class="secondary" aria-pressed="false">Pin to My desktop</button>
+      </div>
     </div>
-    <p><a id="sheet-launch" class="primary" target="_blank" rel="noopener"></a></p>
   </dialog>
 
   <footer class="footer">
     <p id="footer-meta"></p>
-    <p><a href="api/v1/openapi.yaml">API contract</a></p>
+    <p><a href="curation.html">For curators</a> · <a href="api/v1/openapi.yaml">API contract</a></p>
   </footer>
+  <script src="common.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>

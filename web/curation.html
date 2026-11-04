@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catalog health (prototype)</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to report</a>
+  <aside class="banner" aria-label="Prototype notice">Prototype. Curator view of the catalog build.</aside>
+  <header class="taskbar">
+    <a class="brand" href="./" aria-label="NCSA Training home">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <span class="brand-name">NCSA Training</span>
+    </a>
+  </header>
+  <main id="main" class="report" tabindex="-1">
+    <h1>Catalog health</h1>
+    <p id="status" role="status">Loading…</p>
+    <ul id="stats" class="stats"></ul>
+    <p id="edit"></p>
+    <div id="sections"></div>
+  </main>
+  <footer class="footer"><p id="footer-meta"></p></footer>
+  <script src="common.js" defer></script>
+  <script src="curation.js" defer></script>
+</body>
+</html>
