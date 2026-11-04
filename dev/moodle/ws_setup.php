@@ -1,5 +1,5 @@
 <?php
-// Same web-service setup as production (see docs/runbook-moodle-ws.md), for the dev Moodle.
+// Same web-service setup as production Learn@NCSA (see docs/adr/0002-hosting-and-portability.md), for the dev Moodle.
 // Public-catalog access only: the role has webservice/rest:use and nothing else.
 define('CLI_SCRIPT', true);
 require('/var/www/html/config.php');

@@ -1,5 +1,6 @@
 # Dev Moodle that mirrors production (web.illinois.edu): Moodle 4.5 LTS, PHP 8.3, MariaDB 10.11,
 # exec/shell_exec/system/passthru disabled, 60 s max execution time. Synthetic data only.
+# Note: the Debian MariaDB client needs --skip-ssl to talk to the dev DB (no TLS on it).
 FROM php:8.3-apache
 
 RUN apt-get update \

@@ -18,11 +18,11 @@ PHP
 chown www-data:www-data config.php
 
 echo "waiting for MariaDB..."
-until mysqladmin ping -h db -u moodle -pmoodle --silent; do sleep 2; done
+until mysqladmin --skip-ssl ping -h db -u moodle -pmoodle --silent; do sleep 2; done
 
 chown -R www-data:www-data /var/moodledata
 as_web() { runuser -u www-data -- "$@"; }
-if ! mysql -h db -u moodle -pmoodle moodle -e "SELECT 1 FROM mdl_config LIMIT 1" >/dev/null 2>&1; then
+if ! mysql --skip-ssl -h db -u moodle -pmoodle moodle -e "SELECT 1 FROM mdl_config LIMIT 1" >/dev/null 2>&1; then
   echo "installing Moodle..."
   as_web php admin/cli/install_database.php --agree-license --lang=en \
     --adminuser=admin --adminpass="${MOODLE_ADMIN_PASSWORD}" --adminemail=admin@example.org \
