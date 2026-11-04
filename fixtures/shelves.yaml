@@ -1,0 +1,26 @@
+# Shelves for the synthetic fixtures and the local dev Moodle (ids match fixtures/moodle/*.json).
+shelves:
+  - id: start
+    title: Get started
+    purpose: First steps.
+    startHere: course:2
+    tiles: [course:2, course:3, course:7, course:8]   # 7 and 8 are not public: expect warnings
+  - id: programming
+    title: Programming
+    purpose: Parallel programming and programs.
+    startHere: course:99                                # not on the shelf: expect a warning
+    tiles: [course:4, group:summer-school, course:5]    # 5 is inside the group: expect a warning
+groups:
+  summer-school:
+    type: program
+    title: Summer School
+    summary: Annual summer school; past years inside.
+    primary: 6
+    courses: [6, 5]
+tools:
+  docs:
+    title: User documentation
+    summary: Example external link.
+    url: https://docs.example.org/
+overrides:
+  course:2: { level: intro, minutes: 60 }
