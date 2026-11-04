@@ -1,0 +1,90 @@
+"""Harness API. Serves the same documents as the static snapshot, at the same paths minus `.json`.
+
+Run:  STORE=files STORE_PATH=dist/api/v1 uvicorn harness.api:app
+      STORE=postgres DATABASE_URL=postgresql://... uvicorn harness.api:app
+"""
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from .contract import spec
+from .store import FileStore, PgStore, Store
+
+
+def make_store() -> Store:
+    kind = os.environ.get("STORE", "files")
+    if kind == "postgres":
+        return PgStore(os.environ["DATABASE_URL"])
+    return FileStore(os.environ.get("STORE_PATH", "dist/api/v1"))
+
+
+def create_app(store: Store | None = None) -> FastAPI:
+    app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
+    app.state.store = store or make_store()
+
+    origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"], allow_headers=["*"])
+
+    def st() -> Store:
+        return app.state.store
+
+    @app.get("/healthz")
+    def healthz() -> dict[str, Any]:
+        meta = st().meta()
+        return {"ok": meta is not None, "generatedAt": meta["generatedAt"] if meta else None}
+
+    @app.get("/api/v1/openapi.yaml", include_in_schema=False)
+    def contract() -> JSONResponse:
+        return JSONResponse(spec())
+
+    @app.get("/api/v1/catalog/meta")
+    def catalog_meta() -> dict[str, Any]:
+        meta = st().meta()
+        if meta is None:
+            raise HTTPException(503, detail="catalog not synced yet")
+        return meta
+
+    @app.get("/api/v1/categories")
+    def categories() -> dict[str, Any]:
+        return st().categories()
+
+    @app.get("/api/v1/shelves")
+    def shelves() -> dict[str, Any]:
+        return st().shelves()
+
+    @app.get("/api/v1/tiles")
+    def tiles() -> dict[str, Any]:
+        return st().tiles()
+
+    @app.get("/api/v1/tiles/{tile_id}")
+    def tile(tile_id: str) -> Any:
+        t = st().tile(tile_id)
+        if t is None:
+            return JSONResponse({"error": "not_found", "message": f"no tile {tile_id}"}, status_code=404)
+        return t
+
+    # Later-phase stubs, straight from the contract's x-phase markers.
+    for path, ops in spec()["paths"].items():
+        for method, op in ops.items():
+            phase = op.get("x-phase", 1)
+            if phase <= 1:
+                continue
+
+            def stub(_phase: int = phase, _op: str = op["operationId"]) -> JSONResponse:
+                return JSONResponse(
+                    {"error": "not_implemented", "message": f"{_op} is planned for phase {_phase}", "phase": _phase},
+                    status_code=501,
+                )
+
+            app.add_api_route(f"/api/v1{path}", stub, methods=[method.upper()], name=op["operationId"])
+
+    return app
+
+
+app = create_app() if os.environ.get("HARNESS_NO_AUTOAPP") != "1" else None
