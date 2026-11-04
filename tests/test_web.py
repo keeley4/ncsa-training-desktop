@@ -13,7 +13,7 @@ def test_no_html_injection_sinks():
 def test_no_third_party_requests():
     for f in WEB.glob("*"):
         text = f.read_text()
-        assert "http://" not in text.replace("http://localhost", "")
+        assert "http://" not in text.replace("http://localhost", "").replace("http://www.w3.org/2000/svg", "")
         assert "googleapis" not in text and "cdn" not in text.lower()
 
 

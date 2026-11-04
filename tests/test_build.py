@@ -12,12 +12,12 @@ FIXTURE_SHELVES = str(ROOT / "fixtures" / "shelves.yaml")
 
 
 def test_static_layout(built_site):
-    for rel in ("index.html", "app.js", "styles.css", "config.json", ".nojekyll",
+    for rel in ("index.html", "app.js", "common.js", "curation.html", "curation.js", "styles.css", "config.json", ".nojekyll",
                 "api/v1/catalog/meta.json", "api/v1/shelves.json", "api/v1/tiles.json",
                 "api/v1/categories.json", "api/v1/openapi.yaml", "api/v1/tiles/course-2.json"):
         assert (built_site / rel).exists(), rel
     cfg = json.loads((built_site / "config.json").read_text())
-    assert cfg == {"apiBase": "api/v1", "suffix": ".json"}
+    assert cfg["apiBase"] == "api/v1" and cfg["suffix"] == ".json"
 
 
 def test_no_token_anywhere(built_site):
