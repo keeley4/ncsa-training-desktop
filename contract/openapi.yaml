@@ -1,0 +1,343 @@
+openapi: 3.1.0
+info:
+  title: NCSA Training Platform API
+  version: 0.1.0
+  summary: Public catalog (Phase 1) plus stubs for later phases.
+  description: |
+    Contract for the NCSA training front door and harness.
+
+    * Phase 1 resources (`/catalog/meta`, `/categories`, `/shelves`, `/tiles`) are implemented two ways:
+      as static JSON files published to GitHub Pages (`<base>/shelves.json`), and by the harness API
+      (`<base>/shelves`). Both return identical bodies; the front door picks the suffix by configuration.
+    * Resources marked `x-phase` > 1 are design stubs. They are not implemented yet and return 501 from the API.
+    * Everything in Phase 1 is public data only: visible courses in visible categories, and fields that
+      Moodle already shows to anonymous visitors. No user data.
+  license:
+    name: TBD
+servers:
+  - url: /api/v1
+    description: Harness API (local Docker now, NCSA host from Phase 3)
+  - url: ./api/v1
+    description: Static snapshot on GitHub Pages (append `.json` to each path)
+tags:
+  - name: catalog
+  - name: later
+paths:
+  /catalog/meta:
+    get:
+      tags: [catalog]
+      operationId: getCatalogMeta
+      x-phase: 1
+      summary: When and from where the catalog was built, plus content-health counts.
+      responses:
+        "200":
+          description: Catalog metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogMeta" }
+  /categories:
+    get:
+      tags: [catalog]
+      operationId: listCategories
+      x-phase: 1
+      summary: Public Moodle categories.
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Category" }
+  /shelves:
+    get:
+      tags: [catalog]
+      operationId: listShelves
+      x-phase: 1
+      summary: Shelves (learning tracks) in display order, each with ordered tile ids.
+      responses:
+        "200":
+          description: Shelves
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Shelf" }
+  /tiles:
+    get:
+      tags: [catalog]
+      operationId: listTiles
+      x-phase: 1
+      summary: Every public tile, including tiles not yet placed on a shelf.
+      responses:
+        "200":
+          description: Tiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                additionalProperties: false
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Tile" }
+  /tiles/{tileId}:
+    get:
+      tags: [catalog]
+      operationId: getTile
+      x-phase: 1
+      parameters:
+        - name: tileId
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/TileId" }
+      responses:
+        "200":
+          description: One tile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tile" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  # ---- Later phases: design stubs, not implemented ----
+  /me:
+    get:
+      tags: [later]
+      operationId: getMe
+      x-phase: 3
+      summary: Signed-in user's profile projection (Globus identity + crosswalk).
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /me/progress:
+    get:
+      tags: [later]
+      operationId: getMyProgress
+      x-phase: 3
+      summary: Moodle course progress for the signed-in user (My Desktop "Continue").
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /enrollments:
+    post:
+      tags: [later]
+      operationId: createEnrollment
+      x-phase: 3
+      summary: Enroll-on-launch into a Moodle course for the signed-in user.
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /crosswalk/review:
+    get:
+      tags: [later]
+      operationId: listCrosswalkReview
+      x-phase: 3
+      summary: Ambiguous identity matches awaiting admin review.
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /offerings:
+    get:
+      tags: [later]
+      operationId: listOfferings
+      x-phase: 4
+      summary: Live workshop offerings (templates).
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /events:
+    get:
+      tags: [later]
+      operationId: listEvents
+      x-phase: 4
+      summary: Live sessions (event instances).
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /registrations:
+    post:
+      tags: [later]
+      operationId: createRegistration
+      x-phase: 4
+      summary: Register the signed-in user for a live session.
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /statements:
+    post:
+      tags: [later]
+      operationId: createStatement
+      x-phase: 5
+      summary: Record an xAPI-shaped learning statement.
+      responses:
+        "501": { $ref: "#/components/responses/NotImplemented" }
+
+components:
+  responses:
+    NotImplemented:
+      description: Planned for a later phase.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        phase: { type: integer }
+    TileId:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]{1,79}$"
+      examples: ["course-34", "group-ihpcss", "tool-delta-docs"]
+    ShelfId:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]{1,79}$"
+    Category:
+      type: object
+      additionalProperties: false
+      required: [id, name, parentId, courseCount]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        parentId: { type: ["integer", "null"] }
+        courseCount:
+          type: integer
+          description: Public courses directly in this category.
+    Shelf:
+      type: object
+      additionalProperties: false
+      required: [id, title, purpose, tileIds, startHere]
+      properties:
+        id: { $ref: "#/components/schemas/ShelfId" }
+        title: { type: string }
+        purpose: { type: string, description: One-line purpose shown under the shelf title. }
+        tileIds:
+          type: array
+          items: { $ref: "#/components/schemas/TileId" }
+        startHere:
+          type: ["string", "null"]
+          description: Tile id to suggest first on this shelf.
+    TileType:
+      type: string
+      enum: [course, program, live, recording, tool]
+    Level:
+      type: ["string", "null"]
+      enum: [intro, intermediate, advanced, null]
+    Tile:
+      type: object
+      additionalProperties: false
+      required: [id, type, title, summary, launch, guestAccess, image, category, level, minutes, shelfIds, source, health]
+      properties:
+        id: { $ref: "#/components/schemas/TileId" }
+        type: { $ref: "#/components/schemas/TileType" }
+        title: { type: string }
+        summary:
+          type: string
+          description: Plain text, no HTML. Empty string when the source has none.
+        launch:
+          type: object
+          additionalProperties: false
+          required: [label, url]
+          properties:
+            label: { type: string, examples: ["Open course"] }
+            url: { type: string, format: uri }
+        guestAccess:
+          type: boolean
+          description: True when anyone can open the course without enrolling.
+        image:
+          type: ["string", "null"]
+          format: uri
+        category:
+          oneOf:
+            - $ref: "#/components/schemas/CategoryRef"
+            - type: "null"
+        level: { $ref: "#/components/schemas/Level" }
+        minutes:
+          type: ["integer", "null"]
+          description: Curated time estimate.
+        shelfIds:
+          type: array
+          items: { $ref: "#/components/schemas/ShelfId" }
+        children:
+          type: array
+          description: For programs and series, the courses inside, newest first.
+          items: { $ref: "#/components/schemas/TileChild" }
+        source: { $ref: "#/components/schemas/Source" }
+        health:
+          type: array
+          description: Content-health flags for curators.
+          items:
+            type: string
+            enum: [no-summary, no-image, unshelved]
+    CategoryRef:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    TileChild:
+      type: object
+      additionalProperties: false
+      required: [title, url, guestAccess]
+      properties:
+        title: { type: string }
+        url: { type: string, format: uri }
+        guestAccess: { type: boolean }
+    Source:
+      type: object
+      additionalProperties: false
+      required: [system, ids]
+      properties:
+        system: { type: string, enum: [moodle, curated] }
+        ids:
+          type: array
+          items: { type: integer }
+          description: Moodle course ids behind this tile.
+    CatalogMeta:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, generatedAt, source, counts, health, warnings]
+      properties:
+        schemaVersion: { type: string, const: "1" }
+        generatedAt: { type: string, format: date-time }
+        source:
+          type: object
+          additionalProperties: false
+          required: [mode, siteUrl, siteName, release]
+          properties:
+            mode: { type: string, enum: [live, fixture] }
+            siteUrl: { type: string, format: uri }
+            siteName: { type: string }
+            release: { type: string }
+        counts:
+          type: object
+          additionalProperties: false
+          required: [courses, tiles, shelves, categories]
+          properties:
+            courses: { type: integer, description: Public Moodle courses. }
+            tiles: { type: integer }
+            shelves: { type: integer }
+            categories: { type: integer }
+        health:
+          type: object
+          additionalProperties: false
+          required: [noSummary, noImage, unshelved]
+          properties:
+            noSummary: { type: array, items: { $ref: "#/components/schemas/TileId" } }
+            noImage: { type: array, items: { $ref: "#/components/schemas/TileId" } }
+            unshelved: { type: array, items: { $ref: "#/components/schemas/TileId" } }
+        warnings:
+          type: array
+          items: { type: string }
+          description: Curation problems found during the build (e.g. a shelf names a course that is not public).
