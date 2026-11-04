@@ -1,0 +1,126 @@
+# Shelves (learning tracks) for the NCSA training front door.
+#
+# Edit this file to curate the desktop. It is the only hand-maintained catalog input;
+# everything else comes from Moodle. Changes go through a pull request.
+#
+#   shelves:  display order matters. `tiles` lists tile refs in display order.
+#   tile refs:  course:<moodle course id>   or   group:<group key>   or   tool:<tool key>
+#   groups:   several Moodle courses shown as ONE tile (a program with yearly runs, a multi-session series).
+#   tools:    external links (docs, Open OnDemand, ...). Add only URLs you have checked.
+#   overrides: optional per-tile level (intro | intermediate | advanced) and minutes.
+#
+# The build warns (and the curation report lists) any public course that is on no shelf,
+# and any ref that points at a course that is not public.
+# Course ids below come from learn.ncsa.illinois.edu as of 2026-11-04.
+
+shelves:
+  - id: get-started
+    title: Get started on NCSA systems
+    purpose: First steps on the Illinois Campus Cluster, Delta, DeltaAI and ICRN.
+    startHere: course:39
+    tiles:
+      - course:39    # Getting Started on the Illinois Campus Cluster
+      - course:109   # Webinar: Getting Started on the IL Campus Cluster
+      - course:94    # Getting Started on NCSA Delta
+      - course:98    # Delta: Basics of Access and Usage
+      - course:115   # Webinar: Getting Started on DeltaAI
+      - course:114   # Interactive Jupyter Notebooks using ICRN
+      - course:97    # Interactive Jobs and Partitions
+
+  - id: hpc-foundations
+    title: HPC foundations
+    purpose: The command line, clusters, environments and file systems.
+    startHere: course:112
+    tiles:
+      - course:112   # How to Use the Linux Command Line Interface (CLI)
+      - course:71    # Using an HPC Cluster for Scientific Applications
+      - course:77    # Customizing Your Computing Environment
+      - course:32    # Using the Lustre File System
+
+  - id: parallel-programming
+    title: Parallel programming
+    purpose: From first MPI program to hybrid codes and debugging.
+    startHere: course:40
+    tiles:
+      - course:40    # Parallel Computing on High-Performance Systems
+      - course:72    # Getting Started with MPI
+      - course:34    # Introduction to MPI
+      - course:43    # Introduction to OpenMP
+      - course:49    # Multilevel Parallel Programming
+      - course:33    # Debugging Serial and Parallel Codes
+
+  - id: performance-gpus-io
+    title: Performance, GPUs and I/O
+    purpose: Measure, tune, and move to GPUs and fast I/O.
+    startHere: course:44
+    tiles:
+      - course:44    # Introduction to Performance Tools
+      - course:76    # Profiling Python Applications
+      - course:99    # No More Porting! Programming GPUs with C++, Fortran, and Python
+      - course:96    # NVIDIA GH200 Grace Hopper Superchip on DeltaAI
+      - course:92    # Efficient I/O: HDF5 and DLIO
+
+  - id: ai-data-science
+    title: AI and data science
+    purpose: Machine learning and data work on NCSA resources.
+    startHere: course:82
+    tiles:
+      - course:82    # AI for Science using Delta
+      - course:116   # Geospatial Deep Learning w/ TorchGeo
+      - course:114   # Interactive Jupyter Notebooks using ICRN
+
+  - id: visualization-quantum
+    title: Visualization and quantum
+    purpose: See your data, and try analog quantum computing.
+    startHere: course:46
+    tiles:
+      - course:46    # Introduction to Visualization
+      - group:bloqade
+
+  - id: programs-cohorts
+    title: Programs and cohorts
+    purpose: Multi-week programs; past years are inside each tile.
+    startHere: null
+    tiles:
+      - group:ihpcss
+      - group:ci-pathways
+
+  - id: professional-skills
+    title: Research and professional skills
+    purpose: Accessibility, teaching, security, and webinar archives.
+    startHere: null
+    tiles:
+      - course:113   # Accessible HPC Workshop Series
+      - course:17    # Developing Effective Training Webinars
+      - course:27    # Cybersecurity for End Users
+      - course:68    # Delta Training Webinars Video Archive
+
+groups:
+  ihpcss:
+    type: program
+    title: International HPC Summer School
+    summary: The annual International HPC Summer School. Open the newest year, or browse past years.
+    primary: 106     # the course the tile opens; others are listed inside, newest first
+    courses: [106, 93, 79, 75, 36, 26, 23, 16]
+  ci-pathways:
+    type: program
+    title: CI Pathways
+    summary: CI Pathways cohort program materials.
+    primary: 108
+    courses: [108, 101]
+  bloqade:
+    type: course
+    title: Analog Quantum Computing with Bloqade
+    summary: A two-session introduction to analog quantum computing with Bloqade.
+    primary: 83
+    courses: [83, 84]
+
+tools: {}
+  # Example (add only verified URLs):
+  # delta-docs:
+  #   title: Delta user documentation
+  #   summary: Official Delta user guide.
+  #   url: https://example.org/
+
+overrides: {}
+  # course:112: { level: intro, minutes: 90 }
