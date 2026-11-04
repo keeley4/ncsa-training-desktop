@@ -1,0 +1,56 @@
+# Publishes the prototype to GitHub Pages: syncs the public catalog from Learn@NCSA,
+# validates it against the contract, and deploys web/ + api/v1/*.json.
+#
+# Needs: repository secret MOODLE_TOKEN (read-only, public-catalog web-service token).
+# Optional: repository variable MOODLE_URL (defaults to https://learn.ncsa.illinois.edu).
+name: Publish to GitHub Pages
+on:
+  schedule:
+    - cron: "23 9 * * *"      # daily, 03:23 US Central (standard time)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["catalog/**", "web/**", "harness/**", "contract/**", ".github/workflows/pages.yml"]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Check the token secret is set
+        env:
+          MOODLE_TOKEN: ${{ secrets.MOODLE_TOKEN }}
+        run: |
+          if [ -z "$MOODLE_TOKEN" ]; then
+            echo "::error::Add the MOODLE_TOKEN repository secret (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+      - name: Sync catalog from Moodle and build the site
+        env:
+          MOODLE_TOKEN: ${{ secrets.MOODLE_TOKEN }}
+          MOODLE_URL: ${{ vars.MOODLE_URL || 'https://learn.ncsa.illinois.edu' }}
+        run: python -m harness build --mode live --site "$MOODLE_URL" --out dist --clean
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

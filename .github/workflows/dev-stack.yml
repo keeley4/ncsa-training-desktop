@@ -1,0 +1,41 @@
+# Brings up the whole local dev stack (dev Moodle + MariaDB + Postgres + harness API + front door)
+# and checks it end to end. Runs on demand and when the stack changes.
+name: Dev stack (end to end)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["dev/**", "harness/**", "fixtures/**", "contract/**"]
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack
+        run: docker compose -f dev/docker-compose.yml up -d --build
+      - name: Wait for the API (Moodle install + seed + sync)
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost:8000/healthz | grep -q '"ok":true'; then echo "API up after $((i*10))s"; exit 0; fi
+            sleep 10
+          done
+          echo "API did not come up"; exit 1
+      - name: Check the catalog synced from the dev Moodle
+        run: |
+          set -e
+          meta=$(curl -sf http://localhost:8000/api/v1/catalog/meta)
+          echo "$meta" | python3 -m json.tool
+          echo "$meta" | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["source"]["mode"]=="live", m; assert m["counts"]["courses"]==6, m["counts"]; assert m["counts"]["shelves"]==2'
+          curl -sf http://localhost:8000/api/v1/tiles | python3 -c 'import json,sys; ids={t["id"] for t in json.load(sys.stdin)["items"]}; print(sorted(ids)); assert "course-7" not in ids and "course-8" not in ids; assert "group-summer-school" in ids'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/events)" = "501"
+          curl -sf http://localhost:8081/config.json | grep -q 'localhost:8000'
+          curl -sf http://localhost:8081/ | grep -q 'NCSA Training'
+      - name: Logs
+        if: always()
+        run: docker compose -f dev/docker-compose.yml logs --no-color --tail=200
+      - name: Stop
+        if: always()
+        run: docker compose -f dev/docker-compose.yml down -v
