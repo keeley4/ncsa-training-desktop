@@ -1,0 +1,54 @@
+# Local dev stack:  docker compose -f dev/docker-compose.yml up --build
+#   Front door  http://localhost:8081   (same web/ build as GitHub Pages, pointed at the API)
+#   Harness API http://localhost:8000/api/v1/shelves   (docs: /api/docs)
+#   Dev Moodle  http://moodle.localhost:8080   (admin / Dev-only-Passw0rd!)
+# First start installs Moodle and takes a few minutes. Synthetic data only.
+name: ncsa-training-dev
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: moodle
+      MARIADB_USER: moodle
+      MARIADB_PASSWORD: moodle
+      MARIADB_ROOT_PASSWORD: dev-root
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes: [moodle-db:/var/lib/mysql]
+  moodle:
+    build: { context: .., dockerfile: dev/moodle/Dockerfile }
+    depends_on: [db]
+    environment:
+      MOODLE_WWWROOT: http://moodle.localhost:8080
+    ports: ["8080:8080"]
+    volumes: [moodle-data:/var/moodledata, shared:/shared]
+    networks:
+      default:
+        aliases: [moodle.localhost]
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: harness
+      POSTGRES_PASSWORD: harness
+      POSTGRES_DB: harness
+    volumes: [pg-data:/var/lib/postgresql/data]
+  api:
+    build: { context: .., dockerfile: dev/api/Dockerfile }
+    depends_on: [postgres, moodle]
+    environment:
+      MOODLE_URL: http://moodle.localhost:8080
+      MOODLE_TOKEN_FILE: /shared/moodle_token
+      DATABASE_URL: postgresql://harness:harness@postgres:5432/harness
+      ALLOWED_ORIGINS: http://localhost:8081
+    ports: ["8000:8000"]
+    volumes: [shared:/shared:ro]
+  web:
+    image: nginx:1.27-alpine
+    ports: ["8081:80"]
+    volumes:
+      - ../web:/usr/share/nginx/html:ro
+      - ./web-config.json:/usr/share/nginx/html/config.json:ro
+volumes:
+  moodle-db: {}
+  moodle-data: {}
+  pg-data: {}
+  shared: {}
