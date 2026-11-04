@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NCSA Training (prototype)</title>
+  <meta name="description" content="Prototype front door for NCSA training: self-paced courses on Learn@NCSA, arranged by learning track.">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to courses</a>
+  <div class="banner" role="note">
+    Prototype. Course information comes from Learn@NCSA and may change.
+  </div>
+  <header class="taskbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">N</span>
+      <span>NCSA Training</span>
+    </div>
+    <form class="search" role="search" onsubmit="return false">
+      <label for="q" class="visually-hidden">Search courses</label>
+      <input id="q" type="search" placeholder="Search courses ( / )" autocomplete="off">
+    </form>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <p id="status" class="status" role="status" aria-live="polite">Loading the catalog…</p>
+    <section id="results" class="shelf" hidden aria-labelledby="results-title">
+      <h2 id="results-title">Search results</h2>
+      <ul class="tiles" id="results-list"></ul>
+    </section>
+    <div id="shelves"></div>
+  </main>
+
+  <dialog id="sheet" aria-labelledby="sheet-title">
+    <form method="dialog" class="sheet-close"><button aria-label="Close">×</button></form>
+    <p id="sheet-type" class="badge"></p>
+    <h2 id="sheet-title"></h2>
+    <p id="sheet-meta" class="meta"></p>
+    <p id="sheet-summary"></p>
+    <div id="sheet-children" hidden>
+      <h3>Inside this program</h3>
+      <ul id="sheet-children-list"></ul>
+    </div>
+    <p><a id="sheet-launch" class="primary" target="_blank" rel="noopener"></a></p>
+  </dialog>
+
+  <footer class="footer">
+    <p id="footer-meta"></p>
+    <p><a href="api/v1/openapi.yaml">API contract</a></p>
+  </footer>
+  <script src="app.js" defer></script>
+</body>
+</html>
