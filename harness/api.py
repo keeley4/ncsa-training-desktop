@@ -5,12 +5,15 @@ Run:  STORE=files STORE_PATH=dist/api/v1 uvicorn harness.api:app
 """
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, http_token_exchange, make_router
 from .contract import spec
@@ -26,7 +29,11 @@ def make_store() -> Store:
     return FileStore(os.environ.get("STORE_PATH", "dist/api/v1"))
 
 
-def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None) -> FastAPI:
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+
+
+def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
+               web_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -92,6 +99,19 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
                 )
 
             app.add_api_route(f"/api/v1{path}", stub, methods=[method.upper()], name=op["operationId"])
+
+    # The front door, served by the harness itself (same files as GitHub Pages; API is live, not .json).
+    # Mounted last so every API and auth route above takes precedence. SERVE_WEB=0 turns it off.
+    web = web_dir if web_dir is not None else Path(os.environ.get("WEB_DIR", WEB_DIR))
+    if os.environ.get("SERVE_WEB", "1") != "0" and (web / "index.html").exists():
+        base_cfg = json.loads((web / "config.json").read_text()) if (web / "config.json").exists() else {}
+
+        @app.get("/config.json", include_in_schema=False)
+        def web_config() -> JSONResponse:
+            return JSONResponse({**base_cfg, "apiBase": "api/v1", "suffix": "", "signIn": True},
+                                headers={"Cache-Control": "no-cache"})
+
+        app.mount("/", StaticFiles(directory=str(web), html=True), name="web")
 
     return app
 

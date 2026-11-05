@@ -388,7 +388,7 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
         value = request.cookies.get(COOKIE)
         if value:
             store.delete_session(hash_session(value))
-        resp = RedirectResponse("/auth", status_code=303, headers={"Cache-Control": "no-store"})
+        resp = RedirectResponse("/", status_code=303, headers={"Cache-Control": "no-store"})
         resp.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="lax")
         return resp
 
