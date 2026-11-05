@@ -24,12 +24,21 @@ touch tmp/restart.txt            # Passenger reloads on the next request
 ## First-time setup (done 2026-11-05)
 
 ```bash
+umask 022                        # code must be world-readable for Passenger; secrets live in ~/.config (0700)
 git clone https://github.com/keeley4/ncsa-training-desktop.git ~/harness
 cloudlinux-selector create --json --interpreter=python --version=3.12 --app-root=harness \
   --domain=trainingdesktop.web.illinois.edu --app-uri=/ --startup-file=passenger_wsgi.py --entry-point=application
-# then the "Update the code" steps
+# `create` OVERWRITES passenger_wsgi.py with a stub that imports itself (RecursionError, "Web application could not be started").
+# Always copy ours back afterwards — the "Update the code" steps do this.
 crontab: 17 * * * * /bin/bash $HOME/harness/deploy/cpanel/sync.sh
 ```
+
+## Gotchas seen on 2026-11-05
+
+- Passenger error #2 "error occurred while trying to access ..." → the checkout was mode 700/600. Fix: dirs 755, files 644.
+- "Web application could not be started" → cPanel's stub `passenger_wsgi.py`. Fix: copy `deploy/cpanel/passenger_wsgi.py` back and `touch tmp/restart.txt`.
+- `/api/docs` is off by design (`openapi_url=None`); the contract is at `/api/v1/openapi.yaml`.
+- PostgreSQL server is 10.23 (end of life since 2022); fine for the schema, but raise with the cPanel service.
 
 ## Checks
 
