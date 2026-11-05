@@ -13,3 +13,12 @@ Match keys, in order: Globus identity (Moodle's OAuth2 linked-login table stores
 ## Phase 1 impact
 
 None at runtime: the prototype is signed-out only. The contract stubs `/me`, `/me/progress`, `/enrollments` and `/crosswalk/review` as `x-phase: 3`.
+
+## Phase 3 implementation (2026-11-05)
+
+- **Flow:** OIDC authorization code with PKCE (S256) **and** a client secret (Globus confidential client `2d08004e-0033-48ea-8b97-f4cee8ad012e`, project "NCSA Training Desktop"). Scopes `openid profile email` only; no Globus data-access scopes.
+- **Routes:** `GET /auth/login?next=/path` → Globus; `GET /auth/callback`; `POST /auth/logout`; `GET /auth` (plain status page for testing); `GET /api/v1/me` (never 401: `{"signedIn": false}` when signed out).
+- **ID token:** received straight from the token endpoint over TLS with client authentication, so the signature check is skipped (OIDC Core 3.1.3.7 item 6); issuer, audience, expiry and nonce are checked. Revisit (verify against `https://auth.globus.org/jwk.json`) if tokens ever arrive through the browser.
+- **Stored:** user (Globus `sub`, name, email, preferred_username, organization, IdP) and every linked identity from `identity_set` (the crosswalk keys). **No Globus tokens are stored.** Sessions: random 256-bit cookie `__Host-ncsa_session` (HttpOnly, Secure, SameSite=Lax, 12 h); only its SHA-256 is in the database.
+- **Open-redirect guard:** `next` must be a same-site path (`/x`, never `//host`).
+- **Not yet:** crosswalk to Moodle accounts, review queue, rate limits (land with enroll-on-launch).
