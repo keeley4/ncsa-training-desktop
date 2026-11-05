@@ -21,6 +21,7 @@ servers:
     description: Static snapshot on GitHub Pages (append `.json` to each path)
 tags:
   - name: catalog
+  - name: identity
   - name: later
 paths:
   /catalog/meta:
@@ -117,12 +118,21 @@ paths:
   # ---- Later phases: design stubs, not implemented ----
   /me:
     get:
-      tags: [later]
+      tags: [identity]
       operationId: getMe
       x-phase: 3
-      summary: Signed-in user's profile projection (Globus identity + crosswalk).
+      x-implemented: true
+      summary: Who is signed in (Globus identity and linked identities). Never 401; signed-out returns signedIn=false.
+      description: >
+        Sign-in itself is a browser redirect flow outside the API: GET /auth/login?next=/path,
+        GET /auth/callback (Globus returns here), POST /auth/logout. The session is an HttpOnly,
+        Secure, SameSite=Lax cookie; this endpoint is not cacheable.
       responses:
-        "501": { $ref: "#/components/responses/NotImplemented" }
+        "200":
+          description: Signed-in state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
   /me/progress:
     get:
       tags: [later]
@@ -188,6 +198,42 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    Me:
+      type: object
+      additionalProperties: false
+      required: [signedIn]
+      properties:
+        signedIn: { type: boolean }
+        user: { $ref: "#/components/schemas/SignedInUser" }
+      if: { properties: { signedIn: { const: true } } }
+      then: { required: [signedIn, user] }
+      else: { not: { required: [user] } }
+    SignedInUser:
+      type: object
+      additionalProperties: false
+      required: [globusId, name, identities]
+      properties:
+        globusId: { type: string, description: "Globus account id (primary identity sub)." }
+        name: { type: string }
+        email: { type: [string, "null"] }
+        username: { type: [string, "null"], description: "preferred_username, e.g. netid@illinois.edu" }
+        organization: { type: [string, "null"] }
+        identityProvider: { type: [string, "null"], description: "Identity provider used for this sign-in." }
+        lastLoginAt: { type: [string, "null"], format: date-time }
+        identities:
+          type: array
+          description: Every identity linked to the Globus account; the identity-crosswalk match keys.
+          items: { $ref: "#/components/schemas/LinkedIdentity" }
+    LinkedIdentity:
+      type: object
+      additionalProperties: false
+      required: [sub, username]
+      properties:
+        sub: { type: string }
+        username: { type: string }
+        email: { type: [string, "null"] }
+        identityProvider: { type: [string, "null"] }
+        organization: { type: [string, "null"] }
     Error:
       type: object
       required: [error, message]
