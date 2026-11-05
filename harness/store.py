@@ -58,8 +58,11 @@ class PgStore:
         return self._psycopg.connect(self.dsn, autocommit=False)
 
     def migrate(self) -> None:
+        from .auth import SCHEMA_SQL as AUTH_SQL
+
         with self._conn() as conn:
             conn.execute(SCHEMA_SQL.read_text())
+            conn.execute(AUTH_SQL.read_text())
             conn.commit()
 
     def save(self, docs: dict[str, Any]) -> int:

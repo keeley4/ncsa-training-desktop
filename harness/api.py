@@ -12,8 +12,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, http_token_exchange, make_router
 from .contract import spec
 from .store import FileStore, PgStore, Store
+
+IMPLEMENTED_LATER_PHASE = {"getMe"}
 
 
 def make_store() -> Store:
@@ -23,7 +26,7 @@ def make_store() -> Store:
     return FileStore(os.environ.get("STORE_PATH", "dist/api/v1"))
 
 
-def create_app(store: Store | None = None) -> FastAPI:
+def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -33,6 +36,12 @@ def create_app(store: Store | None = None) -> FastAPI:
 
     def st() -> Store:
         return app.state.store
+
+    if auth_store is None:
+        auth_store = PgAuthStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else MemoryAuthStore()
+    app.state.auth_store = auth_store
+    get_cfg = (lambda: auth_config) if auth_config is not None else AuthConfig.from_env
+    app.include_router(make_router(get_cfg, auth_store, exchange or http_token_exchange))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -73,7 +82,7 @@ def create_app(store: Store | None = None) -> FastAPI:
     for path, ops in spec()["paths"].items():
         for method, op in ops.items():
             phase = op.get("x-phase", 1)
-            if phase <= 1:
+            if phase <= 1 or op["operationId"] in IMPLEMENTED_LATER_PHASE:
                 continue
 
             def stub(_phase: int = phase, _op: str = op["operationId"]) -> JSONResponse:

@@ -17,6 +17,7 @@ DOCUMENT_PATHS = {
     "shelves": "/shelves",
     "tiles": "/tiles",
     "tile": "/tiles/{tileId}",
+    "me": "/me",
 }
 
 
