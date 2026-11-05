@@ -53,3 +53,24 @@ def test_postgres_store_round_trip(result):
     for path, doc in (("/catalog/meta", result.meta), ("/categories", result.categories),
                       ("/shelves", result.shelves), ("/tiles", result.tiles)):
         assert pg.get(f"/api/v1{path}").json() == doc
+
+
+def test_front_door_served_by_harness(built_site):
+    from pathlib import Path
+    web = Path(__file__).resolve().parent.parent / "web"
+    c = TestClient(create_app(FileStore(built_site / "api" / "v1"), web_dir=web))
+    r = c.get("/")
+    assert r.status_code == 200 and "<dialog" in r.text
+    cfg = c.get("/config.json").json()
+    assert cfg["apiBase"] == "api/v1" and cfg["suffix"] == "" and cfg["editShelvesUrl"]
+    assert c.get("/app.js").status_code == 200
+    # API and auth routes still win over the static mount
+    assert c.get("/api/v1/tiles/course-2").json()["id"] == "course-2"
+    assert c.get("/api/v1/me").json() == {"signedIn": False}
+    assert c.get("/healthz").status_code == 200
+
+
+def test_front_door_can_be_turned_off(built_site, monkeypatch):
+    monkeypatch.setenv("SERVE_WEB", "0")
+    c = TestClient(create_app(FileStore(built_site / "api" / "v1")))
+    assert c.get("/").status_code == 404
