@@ -358,6 +358,26 @@
     }
   });
 
+  // ---------- account (only when served by the harness, which sets config.signIn) ----------
+  const renderAccount = async () => {
+    const box = $("account");
+    if (!box || !window.NCSA.config.signIn) return;
+    try {
+      const me = await api("/me");
+      if (me.signedIn) {
+        const form = el("form", { method: "post", action: "/auth/logout", class: "account-form" },
+          el("span", { class: "account-name", text: me.user.name || me.user.username || "Signed in" }),
+          el("button", { type: "submit", class: "chip", text: "Sign out" }));
+        box.replaceChildren(form);
+      } else {
+        const next = "/" + (location.hash || "");
+        box.replaceChildren(el("a", { class: "chip signin", href: `/auth/login?next=${encodeURIComponent(next)}`,
+          text: "Sign in" }));
+      }
+      box.hidden = false;
+    } catch (_) { /* signed-out view still works */ }
+  };
+
   // ---------- start ----------
   const start = async () => {
     try {
@@ -370,6 +390,7 @@
       $("tracks-list").replaceChildren(...state.shelves.map((s) =>
         el("li", {}, el("a", { href: `#/shelf/${s.id}`, text: s.title }))));
       $("footer-meta").textContent = footer(meta);
+      renderAccount();
       $("status").textContent = "";
       $("status").classList.add("visually-hidden");
       const r = parseRoute(location.hash);

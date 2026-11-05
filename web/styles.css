@@ -84,6 +84,9 @@ a { color: var(--accent); }
 }
 .tracks-list a { display: block; padding: 8px 10px; border-radius: 6px; text-decoration: none; color: var(--text); }
 .tracks-list a:hover, .tracks-list a:focus-visible { background: var(--badge); }
+.account-form { display: flex; align-items: center; gap: 8px; margin: 0; }
+.account-name { font-size: 14px; color: var(--muted); }
+a.chip { text-decoration: none; display: inline-block; }
 
 /* ---------- layout ---------- */
 main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none; }
@@ -182,5 +185,7 @@ main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none;
   .search input { width: 100%; }
   .filters { order: 3; }
   .tracks { order: 4; }
+  .account { order: 2; }
+  .account-name { display: none; }
   .tracks-list { right: auto; left: 0; }
 }
