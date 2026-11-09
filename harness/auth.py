@@ -96,6 +96,9 @@ class AuthStore(Protocol):
     def session_user(self, id_hash: str) -> dict[str, Any] | None: ...
     def delete_session(self, id_hash: str) -> None: ...
     def set_link(self, user_id: int, result: Any) -> None: ...
+    def get_link(self, user_id: int) -> dict[str, Any] | None: ...
+    def list_reviews(self) -> list[dict[str, Any]]: ...
+    def decide(self, user_id: int, action: str, moodle_id: int | None, admin: str) -> bool: ...
 
 
 def _now() -> datetime:
@@ -144,7 +147,32 @@ class MemoryAuthStore:
 
     def set_link(self, user_id, result):
         self.links[user_id] = {"status": result.status, "moodleId": result.moodle_id, "method": result.method,
-                               "reason": result.reason, "candidates": [c.as_dict() for c in result.candidates]}
+                               "reason": result.reason, "candidates": [c.as_dict() for c in result.candidates],
+                               "checkedAt": _now().isoformat()}
+
+    def get_link(self, user_id):
+        return self.links.get(user_id)
+
+    def list_reviews(self):
+        out = []
+        for uid, link in sorted(self.links.items()):
+            if link["status"] == "review":
+                u = self.users[uid]
+                out.append({"userId": uid, "name": u.get("name") or "", "username": u.get("preferred_username"),
+                            "email": u.get("email"), "reason": link.get("reason"),
+                            "candidates": link.get("candidates", []), "checkedAt": link.get("checkedAt")})
+        return out
+
+    def decide(self, user_id, action, moodle_id, admin):
+        link = self.links.get(user_id)
+        if not link or link["status"] != "review":
+            return False
+        if action == "link":
+            link.update(status="linked", moodleId=moodle_id, method="admin", reason=None)
+        else:
+            link.update(status="none", moodleId=None, method="admin", reason="admin_rejected")
+        link.update(decidedBy=admin, decidedAt=_now().isoformat())
+        return True
 
 
 class PgAuthStore:
@@ -247,6 +275,36 @@ class PgAuthStore:
                 (user_id, result.status, result.moodle_id, result.method, result.reason,
                  Jsonb([c.as_dict() for c in result.candidates])))
             conn.commit()
+
+    def get_link(self, user_id):
+        with self._conn() as conn:
+            row = conn.execute("SELECT status, moodle_id, method, reason FROM moodle_links WHERE user_id=%s",
+                               (user_id,)).fetchone()
+        return {"status": row[0], "moodleId": row[1], "method": row[2], "reason": row[3]} if row else None
+
+    def list_reviews(self):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT u.id, u.name, u.preferred_username, u.email, l.reason, l.candidates, l.checked_at
+                   FROM moodle_links l JOIN users u ON u.id = l.user_id
+                   WHERE l.status = 'review' ORDER BY l.checked_at""").fetchall()
+        return [{"userId": r[0], "name": r[1] or "", "username": r[2], "email": r[3], "reason": r[4],
+                 "candidates": r[5] or [], "checkedAt": r[6].isoformat()} for r in rows]
+
+    def decide(self, user_id, action, moodle_id, admin):
+        with self._conn() as conn:
+            if action == "link":
+                cur = conn.execute(
+                    """UPDATE moodle_links SET status='linked', moodle_id=%s, method='admin', reason=NULL,
+                         decided_by=%s, decided_at=now() WHERE user_id=%s AND status='review'""",
+                    (moodle_id, admin, user_id))
+            else:
+                cur = conn.execute(
+                    """UPDATE moodle_links SET status='none', moodle_id=NULL, method='admin',
+                         reason='admin_rejected', decided_by=%s, decided_at=now()
+                       WHERE user_id=%s AND status='review'""", (admin, user_id))
+            conn.commit()
+            return cur.rowcount == 1
 
 
 # ---------------------------------------------------------------- OIDC helpers
@@ -371,7 +429,8 @@ def moodle_projection(link: dict[str, Any] | None) -> dict[str, Any]:
 
 def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                 exchange: Callable[[AuthConfig, str, str], dict[str, Any]] = http_token_exchange,
-                linker: Callable[[Profile], Any] | None = None) -> APIRouter:
+                linker: Callable[[Profile], Any] | None = None,
+                is_admin: Callable[[dict[str, Any]], bool] = lambda u: False) -> APIRouter:
     r = APIRouter()
 
     def current_user(request: Request) -> dict[str, Any] | None:
@@ -416,7 +475,8 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
             return fail(f"Sign-in could not be completed ({exc}).", 502)
         profile = profile_from_claims(claims)
         uid = store.upsert_user(profile)
-        if linker is not None:
+        prior = store.get_link(uid)
+        if linker is not None and not (prior and prior.get("method") == "admin"):  # admin decisions stick
             try:  # best effort: a Moodle outage must not block sign-in
                 store.set_link(uid, linker(profile))
             except Exception:  # noqa: BLE001
@@ -452,7 +512,8 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                     f"({html.escape(user.get('preferred_username') or '')}).</p>"
                     f"<p>Linked identities:</p><ul>{ids}</ul>"
                     f"<p>Learn@NCSA account: {html.escape(LINK_TEXT.get(me_document(user)['user']['moodle']['status'], ''))}</p>"
-                    '<form method="post" action="/auth/logout"><button>Sign out</button></form>')
+                    + ('<p><a href="/admin/review">Account review queue</a></p>' if is_admin(user) else '')
+                    + '<form method="post" action="/auth/logout"><button>Sign out</button></form>')
         elif configured:
             body = '<p>Not signed in.</p><p><a href="/auth/login">Sign in with Globus</a></p>'
         else:

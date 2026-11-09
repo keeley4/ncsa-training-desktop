@@ -16,11 +16,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, Profile, http_token_exchange, make_router
+from .admin import admin_usernames_from_env, make_admin_router, make_is_admin
 from .crosswalk import Result, moodle_lookup_from_env, resolve
 from .contract import spec
 from .store import FileStore, PgStore, Store
 
-IMPLEMENTED_LATER_PHASE = {"getMe"}
+IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview"}
 
 
 def make_store() -> Store:
@@ -34,7 +35,8 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
-               web_dir: Path | None = None, lookup=None) -> FastAPI:
+               web_dir: Path | None = None, lookup=None,
+               admin_usernames: set[str] | None = None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -55,7 +57,14 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
             return Result("unavailable", reason="not_configured")
         return resolve(lk, p.identities, p.preferred_username, p.email)
 
-    app.include_router(make_router(get_cfg, auth_store, exchange or http_token_exchange, linker))
+    is_admin = make_is_admin(lambda: {a.lower() for a in admin_usernames} if admin_usernames is not None
+                             else admin_usernames_from_env())
+    auth_router = make_router(get_cfg, auth_store, exchange or http_token_exchange, linker, is_admin)
+    app.include_router(auth_router)
+    app.include_router(make_admin_router(
+        auth_store, auth_router.current_user, is_admin,
+        get_base_url=lambda: (get_cfg().base_url if get_cfg() else None),
+        get_moodle_url=lambda: os.environ.get("MOODLE_URL")))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
