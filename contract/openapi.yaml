@@ -151,12 +151,41 @@ paths:
         "501": { $ref: "#/components/responses/NotImplemented" }
   /crosswalk/review:
     get:
-      tags: [later]
+      tags: [identity]
       operationId: listCrosswalkReview
       x-phase: 3
-      summary: Ambiguous identity matches awaiting admin review.
+      x-implemented: true
+      summary: People whose Learn@NCSA account could not be linked automatically (administrators only).
       responses:
-        "501": { $ref: "#/components/responses/NotImplemented" }
+        "200":
+          description: Review queue.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewList" }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+  /crosswalk/review/{userId}:
+    post:
+      tags: [identity]
+      operationId: decideCrosswalkReview
+      x-phase: 3
+      x-implemented: true
+      summary: Link the person to one of the candidate accounts, or reject all (administrators only, same-site only).
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { enum: [link, reject] }
+                moodleId: { type: integer }
+      responses:
+        "200": { description: Decision recorded. }
+        "409": { description: Not a candidate, or no longer waiting for review. }
   /offerings:
     get:
       tags: [later]
@@ -236,6 +265,32 @@ components:
       properties:
         status: { enum: [linked, review, none, unavailable] }
         accountId: { type: [integer, "null"] }
+    ReviewList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [userId, name, reason, candidates]
+            properties:
+              userId: { type: integer }
+              name: { type: string }
+              username: { type: [string, "null"] }
+              email: { type: [string, "null"] }
+              reason: { type: [string, "null"] }
+              checkedAt: { type: [string, "null"] }
+              candidates:
+                type: array
+                items:
+                  type: object
+                  required: [moodleId, auth, suspended, matchedBy]
+                  properties:
+                    moodleId: { type: integer }
+                    auth: { type: string }
+                    suspended: { type: boolean }
+                    matchedBy: { enum: [username, email] }
     LinkedIdentity:
       type: object
       additionalProperties: false
