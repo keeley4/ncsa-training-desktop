@@ -22,6 +22,8 @@ from .learner import MemoryEnrolLog, PgEnrolLog, catalog_courses, make_learner_r
 from .live_store import MemoryLiveStore, PgLiveStore
 from .workshops import make_workshops_router
 from .analytics import make_analytics_router
+from .coord import CoordStore
+from .coord_web import coordinator_usernames_from_env, make_coord_router, make_is_coordinator
 from .contract import spec
 from .store import FileStore, PgStore, Store
 
@@ -42,7 +44,7 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
                web_dir: Path | None = None, lookup=None,
                admin_usernames: set[str] | None = None, moodle_call=None, enrol_log=None,
-               live_store=None) -> FastAPI:
+               live_store=None, coord_store=None, coordinator_usernames: set[str] | None = None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -93,6 +95,13 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
 
     app.include_router(make_analytics_router(live_store, auth_store, enrol_log.rows_since, catalog_titles,
                                              auth_router.current_user, is_admin, base_url))
+    if coord_store is None:
+        coord_store = CoordStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else CoordStore()
+    app.state.coord_store = coord_store
+    is_coordinator = make_is_coordinator(is_admin, (lambda: {c.lower() for c in coordinator_usernames})
+                                         if coordinator_usernames is not None else coordinator_usernames_from_env)
+    app.include_router(make_coord_router(coord_store, live_store, auth_router.current_user, is_coordinator, is_admin,
+                                         base_url))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:

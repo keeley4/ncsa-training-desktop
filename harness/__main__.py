@@ -162,6 +162,25 @@ def cmd_course_stats(args: argparse.Namespace) -> None:
     print(f"course-stats: {len(counts)} courses, {sum(counts.values())} enrolments")
 
 
+def cmd_pull_feed(args: argparse.Namespace) -> None:
+    from .crosswalk import moodle_call_from_env
+    from .feed import pull
+    from .live_store import PgLiveStore
+    from .moodle import MoodleError
+
+    call = moodle_call_from_env()
+    if call is None:
+        print("pull-feed: no learner-service token configured; skipped")
+        return
+    live = PgLiveStore(args.database_url or os.environ["DATABASE_URL"])
+    try:
+        n = pull(live, call)
+    except MoodleError as exc:
+        print(f"pull-feed: Learn@NCSA refused ({exc.errorcode}); skipped")
+        return
+    print(f"pull-feed: {n} new events (last id {live.feed_last_id()})")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="harness")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -180,8 +199,11 @@ def main(argv: list[str] | None = None) -> None:
     sub.choices["sync-db"].add_argument("--database-url")
     cs = sub.add_parser("course-stats", help="refresh Learn@NCSA enrolment counts and purge old usage events")
     cs.add_argument("--database-url")
+    pf = sub.add_parser("pull-feed", help="pull new Learn@NCSA activity events (local_ncsahub)")
+    pf.add_argument("--database-url")
     args = p.parse_args(argv)
-    {"build": cmd_build, "sync-db": cmd_sync_db, "course-stats": cmd_course_stats}[args.cmd](args)
+    {"build": cmd_build, "sync-db": cmd_sync_db, "course-stats": cmd_course_stats,
+     "pull-feed": cmd_pull_feed}[args.cmd](args)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from .admin import _same_origin
+from . import feed
 from .live_store import retention_cutoff
 
 KINDS = {
@@ -150,6 +151,8 @@ def make_analytics_router(store: Any, auth_store: Any, enrol_log_rows: Callable[
         })
         out["tileTitles"] = {t["tileId"]: titles["tiles"].get(t["tileId"], t["tileId"]) for t in out["tiles"]}
         out["workshopTitles"] = {k: workshops.get(k, f"Workshop {k}") for k in out["workshopActions"]}
+        out["learn"] = feed.report(store, days, titles["courses"], now)
+        out["followThrough"] = feed.follow_through(store, store.list_workshops(), now=now) if out["learn"]["available"] else []
         return out
 
     def guard(request: Request) -> Response | None:
@@ -209,6 +212,33 @@ def _table(head: list[str], rows: list[list[Any]], empty: str) -> str:
     body = "".join("<tr>" + "".join(f"<td{' class=num' if i else ''}>{html.escape(str(c))}</td>"
                                     for i, c in enumerate(r)) + "</tr>" for r in rows)
     return f"<table><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table>"
+
+
+def _learn(d: dict[str, Any]) -> str:
+    lr = d.get("learn") or {}
+    if not lr.get("available"):
+        return ('<h2>Learn@NCSA activity</h2><div class="card"><p class="muted">No activity feed yet (needs the '
+                'local_ncsahub plugin on Learn@NCSA; pulled hourly).</p></div>')
+    t = lr["totals"]
+    rows = [[c["title"], c["newEnrolments"], c["completions"], c["activityCompletions"], c["completionsAllTime"]]
+            for c in lr["courses"]]
+    ft = [[f'{x["date"]} · {x["title"]}', f'{x["enrolBefore"]} → {x["enrolAfter"]}',
+           f'{x["completeBefore"]} → {x["completeAfter"]}', "in progress" if x["partial"] else ""]
+          for x in d.get("followThrough") or []]
+    return (
+        '<h2>Learn@NCSA activity</h2><div class="kpis">'
+        + "".join(f'<div class="kpi"><div class="v">{v:,}</div><div class="l">{html.escape(l)}</div></div>' for l, v in [
+            ("New enrolments", t["newEnrolments"]), ("Course completions", t["courseCompletions"]),
+            ("Activities completed", t["activityCompletions"]), ("Active learners", t["activeLearners"]),
+            ("Course completions, all time", t["completionsAllTime"])])
+        + '</div><div class="card" style="margin-top:10px">'
+        + _table(["Course", "New enrolments", "Completions", "Activities completed", "Completions (all time)"], rows,
+                 "No course activity in this period.")
+        + f'<p class="muted">Feed since {html.escape(lr["since"][:10])}. Counts are learners, not names.</p></div>'
+        '<h2>Workshop follow-through</h2><div class="card">'
+        + _table(["Workshop (linked course)", "Enrolments: 30 days before → after", "Completions: before → after", ""], ft,
+                 "No delivered workshops linked to a Learn@NCSA course yet.")
+        + '</div>')
 
 
 def render(d: dict[str, Any]) -> str:
@@ -271,6 +301,6 @@ def render(d: dict[str, Any]) -> str:
         + (f'<p class="muted">Enrollment counts as of {html.escape(checked[:16].replace("T", " "))} UTC.'
            ' Completion counts need the Learn@NCSA event stream (later phase).</p>' if checked else
            '<p class="muted">Completion counts need the Learn@NCSA event stream (later phase).</p>')
-        + '</div><p class="muted"><a href="/api/v1/admin/analytics?days=' + str(d["days"]) + '">JSON</a> · '
+        + '</div>' + _learn(d) + '<p class="muted"><a href="/api/v1/admin/analytics?days=' + str(d["days"]) + '">JSON</a> · '
         '<a href="/admin/workshops">Workshops</a> · <a href="/admin/review">Account review</a> · <a href="/">Front door</a></p>'
         '</body></html>')

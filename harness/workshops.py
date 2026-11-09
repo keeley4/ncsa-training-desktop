@@ -282,7 +282,7 @@ def make_workshops_router(store: Any, current_user: Callable[[Request], dict[str
                '.err{background:#fde8e8;padding:8px 12px;border-radius:6px}.ok{background:#e6f4ea;padding:8px 12px;border-radius:6px}'
                '.tag{font-size:12px;padding:1px 8px;border-radius:99px;background:#eef1f5}'
                '@media(max-width:640px){.row{grid-template-columns:1fr}}</style></head><body>'
-               f'{body}<p class="muted"><a href="/admin/analytics">Usage analytics</a> · <a href="/admin/review">Account review</a> · <a href="/">Front door</a></p></body></html>')
+               f'{body}<p class="muted"><a href="/coord">Coordinator</a> · <a href="/admin/analytics">Usage analytics</a> · <a href="/admin/review">Account review</a> · <a href="/">Front door</a></p></body></html>')
         return HTMLResponse(doc, headers={"Cache-Control": "no-store"})
 
     def admin_gate(request: Request) -> Response | None:

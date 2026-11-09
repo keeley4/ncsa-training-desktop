@@ -53,6 +53,9 @@ class MemoryLiveStore:
         self.workshops[wid]["updated_at"] = now
         return wid
 
+    def delete_workshop(self, wid: int) -> bool:
+        return self.workshops.pop(wid, None) is not None
+
     # usage
     def add_usage(self, rows: list[dict[str, Any]]) -> None:
         for r in rows:
@@ -76,6 +79,24 @@ class MemoryLiveStore:
 
     def course_stats(self) -> dict[int, dict[str, Any]]:
         return {cid: {"enrolled": n, "checkedAt": at.isoformat()} for cid, (n, at) in self.stats.items()}
+
+    # Learn@NCSA activity feed
+    def add_feed_events(self, rows: list[dict[str, Any]]) -> int:
+        if not hasattr(self, "feed"):
+            self.feed: dict[int, dict[str, Any]] = {}
+        new = 0
+        for r in rows:
+            if r["id"] not in self.feed:
+                new += 1
+            self.feed[r["id"]] = r
+        return new
+
+    def feed_last_id(self) -> int:
+        return max(getattr(self, "feed", {}) or {0: None})
+
+    def feed_events(self, kinds: tuple[str, ...], since: datetime | None = None) -> list[dict[str, Any]]:
+        return [r for r in getattr(self, "feed", {}).values()
+                if r["kind"] in kinds and (since is None or r["at"] >= since)]
 
 
 class PgLiveStore:
@@ -126,6 +147,12 @@ class PgLiveStore:
             conn.commit()
         return int(wid)
 
+    def delete_workshop(self, wid: int) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM workshops WHERE id=%s", (wid,))
+            conn.commit()
+            return cur.rowcount == 1
+
     def add_usage(self, rows: list[dict[str, Any]]) -> None:
         if not rows:
             return
@@ -156,6 +183,30 @@ class PgLiveStore:
                     "ON CONFLICT (course_id) DO UPDATE SET enrolled=EXCLUDED.enrolled, checked_at=now()",
                     list(counts.items()))
             conn.commit()
+
+    def add_feed_events(self, rows: list[dict[str, Any]]) -> int:
+        if not rows:
+            return 0
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.executemany(
+                    "INSERT INTO moodle_events (id, kind, moodle_user, course_id, cm_id, state, at) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    [(r["id"], r["kind"], r["moodle_user"], r["course_id"], r["cm_id"], r["state"], r["at"]) for r in rows])
+                n = cur.rowcount
+            conn.commit()
+        return max(n, 0)
+
+    def feed_last_id(self) -> int:
+        with self._conn() as conn:
+            row = conn.execute("SELECT coalesce(max(id), 0) AS m FROM moodle_events").fetchone()
+        return int(row["m"])
+
+    def feed_events(self, kinds: tuple[str, ...], since: datetime | None = None) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            return conn.execute(
+                "SELECT id, kind, moodle_user, course_id, cm_id, state, at FROM moodle_events "
+                "WHERE kind = ANY(%s) AND (%s::timestamptz IS NULL OR at >= %s)", (list(kinds), since, since)).fetchall()
 
     def course_stats(self) -> dict[int, dict[str, Any]]:
         with self._conn() as conn:

@@ -529,7 +529,7 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                     f"({html.escape(user.get('preferred_username') or '')}).</p>"
                     f"<p>Linked identities:</p><ul>{ids}</ul>"
                     f"<p>Learn@NCSA account: {html.escape(LINK_TEXT.get(me_document(user)['user']['moodle']['status'], ''))}</p>"
-                    + ('<p>Admin: <a href="/admin/review">Account review queue</a> · <a href="/admin/workshops">Workshops</a> · '
+                    + ('<p>Admin: <a href="/admin/review">Account review queue</a> · <a href="/coord">Coordinator</a> · <a href="/admin/workshops">Workshops</a> · '
                        '<a href="/admin/analytics">Usage analytics</a></p>' if is_admin(user) else '')
                     + '<form method="post" action="/auth/logout"><button>Sign out</button></form>')
         elif configured:
