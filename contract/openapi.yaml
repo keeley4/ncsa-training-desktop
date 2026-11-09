@@ -22,6 +22,7 @@ servers:
 tags:
   - name: catalog
   - name: identity
+  - name: learner
   - name: later
 paths:
   /catalog/meta:
@@ -135,20 +136,51 @@ paths:
               schema: { $ref: "#/components/schemas/Me" }
   /me/progress:
     get:
-      tags: [later]
+      tags: [learner]
       operationId: getMyProgress
       x-phase: 3
-      summary: Moodle course progress for the signed-in user (My Desktop "Continue").
+      x-implemented: true
+      summary: The signed-in learner's Learn@NCSA courses with progress and last access (My Desktop "Continue").
+      description: >
+        Read live from Learn@NCSA for the linked account only; not stored. status is the identity-crosswalk
+        status; items is empty unless status is linked. Most recently accessed first.
       responses:
-        "501": { $ref: "#/components/responses/NotImplemented" }
+        "200":
+          description: Courses.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProgressList" }
+        "401": { description: Not signed in. }
   /enrollments:
     post:
-      tags: [later]
+      tags: [learner]
       operationId: createEnrollment
       x-phase: 3
-      summary: Enroll-on-launch into a Moodle course for the signed-in user.
+      x-implemented: true
+      summary: Enroll-on-launch. Enrolls the signed-in learner as a student, then the client opens url.
+      description: >
+        Same-site only. Allowed when the course is on the front door, the learner's account is linked, and
+        Learn@NCSA reports open self-enrollment with no key (so this only removes clicks; it never opens a
+        closed course). Rate-limited per person and site-wide. On any refusal the client opens url, where
+        Learn@NCSA handles enrollment as before.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseId]
+              properties:
+                courseId: { type: integer }
       responses:
-        "501": { $ref: "#/components/responses/NotImplemented" }
+        "200": { description: Already enrolled., content: { application/json: { schema: { $ref: "#/components/schemas/EnrollmentResult" } } } }
+        "201": { description: Enrolled., content: { application/json: { schema: { $ref: "#/components/schemas/EnrollmentResult" } } } }
+        "401": { description: Not signed in. }
+        "403": { description: Cross-site request. }
+        "404": { description: Course is not on the front door. }
+        "409": { description: "Not allowed (enrol_off, not_linked, not_open); open url instead." }
+        "429": { description: Rate limited; open url instead. }
+        "502": { description: Learn@NCSA unavailable or refused; open url instead. }
   /crosswalk/review:
     get:
       tags: [identity]
@@ -265,6 +297,35 @@ components:
       properties:
         status: { enum: [linked, review, none, unavailable] }
         accountId: { type: [integer, "null"] }
+    ProgressList:
+      type: object
+      additionalProperties: false
+      required: [status, items]
+      properties:
+        status: { enum: [linked, review, none, unavailable] }
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [courseId, title, url, tileId, progress, completed, lastAccess]
+            properties:
+              courseId: { type: integer }
+              title: { type: string }
+              url: { type: string }
+              tileId: { type: [string, "null"], description: Front-door tile for this course, if it is on a shelf. }
+              progress: { type: [integer, "null"], minimum: 0, maximum: 100, description: Percent of completion-tracked activities done; null if the course has no completion tracking. }
+              completed: { type: [boolean, "null"] }
+              lastAccess: { type: [string, "null"], format: date-time }
+    EnrollmentResult:
+      type: object
+      required: [enrolled, url]
+      properties:
+        enrolled: { type: boolean }
+        already: { type: boolean }
+        url: { type: string }
+        error: { type: string }
+        message: { type: string }
     ReviewList:
       type: object
       required: [items]
