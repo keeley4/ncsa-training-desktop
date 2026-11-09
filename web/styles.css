@@ -189,3 +189,19 @@ main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none;
   .account-name { display: none; }
   .tracks-list { right: auto; left: 0; }
 }
+
+/* ---------- learner progress (signed in, harness only) ---------- */
+.badge.mine { background: var(--open); color: var(--open-text); font-weight: 600; }
+.primary.small { font-size: 14px; padding: 6px 12px; }
+.continue { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.continue-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+}
+.continue-title { font-weight: 600; color: inherit; overflow-wrap: anywhere; }
+.continue-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; white-space: nowrap; }
+.continue-status progress { width: 90px; height: 8px; accent-color: var(--accent-2); }
+@media (max-width: 600px) {
+  .continue-item { grid-template-columns: 1fr auto; }
+  .continue-status { grid-column: 1 / -1; grid-row: 2; }
+}

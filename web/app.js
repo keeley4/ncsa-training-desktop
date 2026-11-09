@@ -19,6 +19,9 @@
     baseHash: "#/",
     sheetPushed: false,
     currentTile: null,
+    me: null,          // /me when served by the harness and signed in
+    progress: null,    // /me/progress: { status, items }
+    byCourse: new Map(), // Moodle course id -> progress item
   };
 
   // ---------- helpers ----------
@@ -30,6 +33,47 @@
   // Status messages are for screen readers once the catalog has loaded (role=status, polite).
   const announce = (text) => { $("status").textContent = text; };
 
+  // ---------- learner progress (harness only) ----------
+  const courseIdOf = (url) => {
+    const m = /\/course\/view\.php\?id=(\d+)/.exec(url || "");
+    return m ? Number(m[1]) : null;
+  };
+  const progressOf = (tile) => (tile.type === "tool" ? null : state.byCourse.get(courseIdOf(tile.launch.url)) || null);
+  const progressText = (p) => (p.completed ? "Completed" : p.progress == null ? "Enrolled" : `${p.progress}% complete`);
+  const linked = () => !!(state.me && state.me.user.moodle && state.me.user.moodle.status === "linked");
+
+  const loadProgress = async () => {
+    if (!linked()) return;
+    try {
+      state.progress = await api("/me/progress");
+      state.byCourse = new Map((state.progress.items || []).map((i) => [i.courseId, i]));
+    } catch (_) { state.progress = null; state.byCourse = new Map(); }
+  };
+
+  const continueSection = () => {
+    const items = (state.progress && state.progress.items) || [];
+    if (!items.length) return null;
+    const shown = items.slice(0, 6);
+    const ul = el("ul", { class: "continue", role: "list", "aria-label": "Continue learning" });
+    for (const p of shown) {
+      const bar = el("progress", { max: "100", value: String(p.completed ? 100 : p.progress || 0),
+        "aria-label": `${p.title}: ${progressText(p)}` });
+      if (p.progress == null && !p.completed) bar.removeAttribute("value");
+      const title = p.tileId && state.tiles.has(p.tileId)
+        ? el("a", { href: `#/tile/${p.tileId}`, class: "continue-title", text: p.title })
+        : el("span", { class: "continue-title", text: p.title });
+      ul.append(el("li", { class: "continue-item" },
+        title,
+        el("span", { class: "continue-status" }, p.progress == null && !p.completed ? null : bar,
+          el("span", { text: progressText(p) })),
+        el("a", { class: "primary small", href: p.url, target: "_blank", rel: "noopener",
+          text: p.completed ? "Review" : "Continue", "aria-label": `${p.completed ? "Review" : "Continue"} ${p.title} on Learn@NCSA` })));
+    }
+    const extra = items.length > shown.length
+      ? el("span", { class: "purpose", text: `Showing your ${shown.length} most recent of ${items.length}.` }) : null;
+    return section("continue", "Continue learning", "Your Learn@NCSA courses, most recent first.", ul, extra);
+  };
+
   // ---------- tiles ----------
   const tileCard = (tile, { startHere = false } = {}) => {
     const btn = el("button", { class: "tile", type: "button", "data-tile": tile.id, tabindex: "-1", "aria-haspopup": "dialog" });
@@ -37,6 +81,7 @@
       el("span", { class: "badge", text: TYPE_LABEL[tile.type] || tile.type }),
       tile.guestAccess ? el("span", { class: "badge open", text: "Open to all" }) : null,
       startHere ? el("span", { class: "badge start", text: "Start here" }) : null,
+      progressOf(tile) ? el("span", { class: "badge mine", text: progressText(progressOf(tile)) }) : null,
       state.pins.includes(tile.id) ? el("span", { class: "badge pinned", text: "Pinned" }) : null);
     btn.append(
       tileArt(tile, hueFor(tile)),
@@ -71,6 +116,8 @@
   const renderHome = () => {
     const view = $("view");
     view.replaceChildren();
+    const cont = continueSection();
+    if (cont) view.append(cont);
     const pinned = state.pins.map((id) => state.tiles.get(id)).filter(Boolean);
     if (pinned.length) {
       view.append(section("mydesktop", "My desktop", "Your pinned courses, saved in this browser.",
@@ -152,7 +199,10 @@
     if (tile.category) bits.push(tile.category.name);
     if (tile.level) bits.push(tile.level);
     if (tile.minutes) bits.push(`about ${tile.minutes} min`);
-    bits.push(tile.guestAccess ? "Open to everyone, no sign-in needed" : "Sign in to Learn@NCSA to enroll");
+    const mine = progressOf(tile);
+    if (mine) bits.push(`You're enrolled: ${progressText(mine).toLowerCase()}`);
+    else if (linked() && tile.type !== "tool") bits.push(tile.guestAccess ? "Open to everyone" : "Start enrolls you if the course is open to everyone");
+    else bits.push(tile.guestAccess ? "Open to everyone, no sign-in needed" : "Sign in to Learn@NCSA to enroll");
     $("sheet-meta").textContent = bits.join(" · ");
     $("sheet-summary").textContent = tile.summary || "No description yet.";
     const kids = tile.children || [];
@@ -173,9 +223,40 @@
     const launch = $("sheet-launch");
     launch.href = tile.launch.url;
     launch.textContent = `${tile.launch.label} on Learn@NCSA`;
+    if (mine) launch.textContent = mine.completed ? "Review on Learn@NCSA" : "Continue on Learn@NCSA";
+    else if (linked() && tile.type !== "tool") launch.textContent = "Start on Learn@NCSA";
     if (tile.type === "tool") launch.textContent = tile.launch.label;
     updatePinButton();
   };
+
+  // Enroll-on-launch: for a signed-in, linked learner who is not yet enrolled, ask the harness to enroll,
+  // then open the course either way (Learn@NCSA handles anything the harness declines).
+  $("sheet-launch").addEventListener("click", async (e) => {
+    const tile = state.tiles.get(state.currentTile);
+    if (!tile || tile.type === "tool" || !linked() || progressOf(tile)) return;
+    const courseId = courseIdOf(tile.launch.url);
+    if (!courseId) return;
+    e.preventDefault();
+    const win = window.open("about:blank", "_blank");
+    if (win) win.opener = null;
+    let url = tile.launch.url;
+    let enrolled = false;
+    try {
+      const res = await fetch("/api/v1/enrollments", { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ courseId }) });
+      const body = await res.json();
+      if (body.url) url = body.url;
+      enrolled = !!body.enrolled;
+    } catch (_) { /* open the course anyway */ }
+    if (win) win.location.href = url;
+    else location.href = url;
+    if (enrolled) {
+      announce("You're enrolled. The course opened in a new tab.");
+      await loadProgress();
+      fillSheet(tile);
+      renderView();
+    }
+  });
 
   const openTile = (id, fromApp) => {
     const tile = state.tiles.get(id);
@@ -365,6 +446,7 @@
     try {
       const me = await api("/me");
       if (me.signedIn) {
+        state.me = me;
         const form = el("form", { method: "post", action: "/auth/logout", class: "account-form" },
           el("span", { class: "account-name", text: me.user.name || me.user.username || "Signed in" }),
           el("button", { type: "submit", class: "chip", text: "Sign out" }));
@@ -390,7 +472,8 @@
       $("tracks-list").replaceChildren(...state.shelves.map((s) =>
         el("li", {}, el("a", { href: `#/shelf/${s.id}`, text: s.title }))));
       $("footer-meta").textContent = footer(meta);
-      renderAccount();
+      await renderAccount();
+      await loadProgress();
       $("status").textContent = "";
       $("status").classList.add("visually-hidden");
       const r = parseRoute(location.hash);
