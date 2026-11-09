@@ -80,6 +80,22 @@ Every attempt is logged in `enrol_events`. **Off switch:** set `ENROL_ON_LAUNCH=
 Without the secret file, `/auth/login` answers 503 "not configured" and `/api/v1/me` says signed out. Test page: `/auth`.
 New tables are created by `PgStore.migrate()` (run after each update; idempotent).
 
+## Live workshops and usage analytics (Phase 4/5 prototype)
+
+- **Workshops:** admins edit at `/admin/workshops` (drafts are hidden from learners; a scheduled workshop needs a
+  registration form link). Registration links out to each workshop's form; this site stores no registrants.
+  Public: `/api/v1/events`, `/api/v1/events/{id}.ics`, feed `/api/v1/events.ics`. Import (admin, same-site):
+  `POST /api/v1/admin/workshops/import` with a JSON list of workshop docs keyed by `source_key` (v1 rows use `v1:<id>`).
+- **Analytics:** admins only, `/admin/analytics` (JSON at `/api/v1/admin/analytics?days=30`). The front door sends
+  aggregate events to `POST /api/v1/usage` (same-site only): a random per-browser-session id, signed-in yes/no,
+  event kind, target (tile/workshop id), search text and result count. **No user ids or IP addresses.** Sign-ins are
+  counted at `/auth/callback`. Usage events are deleted after 395 days.
+- **Enrollment counts:** `sync.sh` runs `python -m harness course-stats` hourly (enrolled users per catalog course via
+  `core_enrol_get_enrolled_users`, ids requested and only the count kept). Needs that function added to the
+  "NCSA Hub (learner service)" service (`hub_learner_setup.php stats`, or Site administration → Server → Web services →
+  External services → Functions). Without it the step logs "refused" and the page shows no counts.
+- Tables: `workshops`, `usage_events`, `course_stats` (`harness/db/schema_live.sql`, created by `PgStore.migrate()`).
+
 ## Checks
 
 - `https://trainingdesktop.web.illinois.edu/healthz` → `{"ok": true, ...}` after the first sync

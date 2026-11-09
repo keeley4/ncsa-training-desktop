@@ -21,6 +21,10 @@ SITE="${MOODLE_URL:-https://learn.ncsa.illinois.edu}"
   else
     echo "=== $(date -Is) sync FAILED"
   fi
+  # Learn@NCSA enrolment counts for the admin analytics page (learner-service token), and usage-event retention.
+  if [ -f "$CONFIG/app.env" ]; then
+    (set -a; . "$CONFIG/app.env"; set +a; "$PY" -m harness course-stats) || echo "=== $(date -Is) course-stats FAILED"
+  fi
 } >> "$LOG" 2>&1
 
 # keep the log small
