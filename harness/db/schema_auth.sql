@@ -59,3 +59,15 @@ CREATE INDEX IF NOT EXISTS moodle_links_status ON moodle_links (status);
 -- Administrator decisions on review items (Phase 3). An admin decision is not overwritten at later sign-ins.
 ALTER TABLE moodle_links ADD COLUMN IF NOT EXISTS decided_by text;
 ALTER TABLE moodle_links ADD COLUMN IF NOT EXISTS decided_at timestamptz;
+
+-- Enroll-on-launch attempts (Phase 3): for rate limits and audit. No course or progress data is stored.
+CREATE TABLE IF NOT EXISTS enrol_events (
+  id          bigserial PRIMARY KEY,
+  user_id     bigint REFERENCES users (id) ON DELETE SET NULL,
+  moodle_id   bigint NOT NULL,
+  course_id   bigint NOT NULL,
+  result      text NOT NULL,               -- enrolled | rate_limited | error:<moodle errorcode>
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS enrol_events_user_time ON enrol_events (user_id, created_at);
+CREATE INDEX IF NOT EXISTS enrol_events_time ON enrol_events (created_at);
