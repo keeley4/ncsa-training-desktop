@@ -42,3 +42,16 @@ CREATE TABLE IF NOT EXISTS login_requests (
   next_path   text NOT NULL,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Identity crosswalk result per signed-in user (re-checked at each sign-in).
+-- Only the Moodle account id, auth type and suspended flag of candidates are kept.
+CREATE TABLE IF NOT EXISTS moodle_links (
+  user_id     bigint PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  status      text NOT NULL CHECK (status IN ('linked', 'review', 'none', 'unavailable')),
+  moodle_id   bigint,
+  method      text,
+  reason      text,
+  candidates  jsonb NOT NULL DEFAULT '[]',
+  checked_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS moodle_links_status ON moodle_links (status);
