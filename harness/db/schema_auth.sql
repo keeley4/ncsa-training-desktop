@@ -55,3 +55,7 @@ CREATE TABLE IF NOT EXISTS moodle_links (
   checked_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS moodle_links_status ON moodle_links (status);
+
+-- Administrator decisions on review items (Phase 3). An admin decision is not overwritten at later sign-ins.
+ALTER TABLE moodle_links ADD COLUMN IF NOT EXISTS decided_by text;
+ALTER TABLE moodle_links ADD COLUMN IF NOT EXISTS decided_at timestamptz;
