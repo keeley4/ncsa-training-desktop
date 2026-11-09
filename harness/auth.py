@@ -95,6 +95,7 @@ class AuthStore(Protocol):
     def create_session(self, id_hash: str, user_id: int, expires: datetime) -> None: ...
     def session_user(self, id_hash: str) -> dict[str, Any] | None: ...
     def delete_session(self, id_hash: str) -> None: ...
+    def set_link(self, user_id: int, result: Any) -> None: ...
 
 
 def _now() -> datetime:
@@ -109,6 +110,7 @@ class MemoryAuthStore:
         self.users: dict[int, dict[str, Any]] = {}
         self.by_sub: dict[str, int] = {}
         self.sessions: dict[str, tuple[int, datetime]] = {}
+        self.links: dict[int, dict[str, Any]] = {}
 
     def put_login(self, state, nonce, verifier, next_path):
         cutoff = time.time() - LOGIN_TTL
@@ -135,10 +137,14 @@ class MemoryAuthStore:
         s = self.sessions.get(id_hash)
         if not s or s[1] <= _now():
             return None
-        return self.users[s[0]]
+        return {**self.users[s[0]], "moodle": self.links.get(s[0])}
 
     def delete_session(self, id_hash):
         self.sessions.pop(id_hash, None)
+
+    def set_link(self, user_id, result):
+        self.links[user_id] = {"status": result.status, "moodleId": result.moodle_id, "method": result.method,
+                               "reason": result.reason, "candidates": [c.as_dict() for c in result.candidates]}
 
 
 class PgAuthStore:
@@ -211,17 +217,35 @@ class PgAuthStore:
             ids = conn.execute(
                 "SELECT sub, username, email, identity_provider, organization FROM user_identities "
                 "WHERE user_id=%s ORDER BY username", (row[0],)).fetchall()
+            link = conn.execute("SELECT status, moodle_id, method, reason FROM moodle_links WHERE user_id=%s",
+                                (row[0],)).fetchone()
         return {
             "id": row[0], "globus_sub": row[1], "name": row[2], "email": row[3], "preferred_username": row[4],
             "organization": row[5], "identity_provider": row[6], "createdAt": row[7].isoformat(),
             "lastLoginAt": row[8].isoformat(),
             "identities": [{"sub": r[0], "username": r[1], "email": r[2], "identityProvider": r[3],
                             "organization": r[4]} for r in ids],
+            "moodle": ({"status": link[0], "moodleId": link[1], "method": link[2], "reason": link[3]}
+                       if link else None),
         }
 
     def delete_session(self, id_hash):
         with self._conn() as conn:
             conn.execute("DELETE FROM sessions WHERE id_hash=%s", (id_hash,))
+            conn.commit()
+
+    def set_link(self, user_id, result):
+        from psycopg.types.json import Jsonb
+
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO moodle_links (user_id, status, moodle_id, method, reason, candidates, checked_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, now())
+                   ON CONFLICT (user_id) DO UPDATE SET status=EXCLUDED.status, moodle_id=EXCLUDED.moodle_id,
+                     method=EXCLUDED.method, reason=EXCLUDED.reason, candidates=EXCLUDED.candidates,
+                     checked_at=now()""",
+                (user_id, result.status, result.moodle_id, result.method, result.reason,
+                 Jsonb([c.as_dict() for c in result.candidates])))
             conn.commit()
 
 
@@ -315,6 +339,13 @@ def http_token_exchange(cfg: AuthConfig, code: str, verifier: str) -> dict[str, 
 
 # ---------------------------------------------------------------- routes
 
+LINK_TEXT = {
+    "linked": "found and linked.",
+    "review": "possible match; waiting for an administrator to confirm.",
+    "none": "none yet. One is created the first time you sign in to Learn@NCSA.",
+    "unavailable": "could not be checked right now.",
+}
+
 def me_document(user: dict[str, Any] | None) -> dict[str, Any]:
     if not user:
         return {"signedIn": False}
@@ -327,11 +358,20 @@ def me_document(user: dict[str, Any] | None) -> dict[str, Any]:
         "identityProvider": user.get("identity_provider"),
         "identities": user.get("identities") or [],
         "lastLoginAt": user.get("lastLoginAt"),
+        "moodle": moodle_projection(user.get("moodle")),
     }}
 
 
+def moodle_projection(link: dict[str, Any] | None) -> dict[str, Any]:
+    """What the signed-in person may see about their own crosswalk result (never other candidates)."""
+    if not link:
+        return {"status": "unavailable", "accountId": None}
+    return {"status": link["status"], "accountId": link.get("moodleId") if link["status"] == "linked" else None}
+
+
 def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
-                exchange: Callable[[AuthConfig, str, str], dict[str, Any]] = http_token_exchange) -> APIRouter:
+                exchange: Callable[[AuthConfig, str, str], dict[str, Any]] = http_token_exchange,
+                linker: Callable[[Profile], Any] | None = None) -> APIRouter:
     r = APIRouter()
 
     def current_user(request: Request) -> dict[str, Any] | None:
@@ -374,7 +414,14 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
             check_id_token(claims, cfg, nonce)
         except AuthError as exc:
             return fail(f"Sign-in could not be completed ({exc}).", 502)
-        uid = store.upsert_user(profile_from_claims(claims))
+        profile = profile_from_claims(claims)
+        uid = store.upsert_user(profile)
+        if linker is not None:
+            try:  # best effort: a Moodle outage must not block sign-in
+                store.set_link(uid, linker(profile))
+            except Exception:  # noqa: BLE001
+                from .crosswalk import Result
+                store.set_link(uid, Result("unavailable", reason="error"))
         raw = secrets.token_urlsafe(32)
         store.create_session(hash_session(raw), uid, _now() + timedelta(hours=cfg.session_hours))
         resp = RedirectResponse(next_path, status_code=303, headers={"Cache-Control": "no-store"})
@@ -404,6 +451,7 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
             body = (f"<p>Signed in as <strong>{html.escape(user.get('name') or '')}</strong> "
                     f"({html.escape(user.get('preferred_username') or '')}).</p>"
                     f"<p>Linked identities:</p><ul>{ids}</ul>"
+                    f"<p>Learn@NCSA account: {html.escape(LINK_TEXT.get(me_document(user)['user']['moodle']['status'], ''))}</p>"
                     '<form method="post" action="/auth/logout"><button>Sign out</button></form>')
         elif configured:
             body = '<p>Not signed in.</p><p><a href="/auth/login">Sign in with Globus</a></p>'

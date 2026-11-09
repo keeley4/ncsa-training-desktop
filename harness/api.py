@@ -15,7 +15,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, http_token_exchange, make_router
+from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, Profile, http_token_exchange, make_router
+from .crosswalk import Result, moodle_lookup_from_env, resolve
 from .contract import spec
 from .store import FileStore, PgStore, Store
 
@@ -33,7 +34,7 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
-               web_dir: Path | None = None) -> FastAPI:
+               web_dir: Path | None = None, lookup=None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -48,7 +49,13 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
         auth_store = PgAuthStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else MemoryAuthStore()
     app.state.auth_store = auth_store
     get_cfg = (lambda: auth_config) if auth_config is not None else AuthConfig.from_env
-    app.include_router(make_router(get_cfg, auth_store, exchange or http_token_exchange))
+    def linker(p: Profile) -> Result:
+        lk = lookup if lookup is not None else moodle_lookup_from_env()
+        if lk is None:
+            return Result("unavailable", reason="not_configured")
+        return resolve(lk, p.identities, p.preferred_username, p.email)
+
+    app.include_router(make_router(get_cfg, auth_store, exchange or http_token_exchange, linker))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
