@@ -138,6 +138,16 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
 
         app.mount("/", StaticFiles(directory=str(web), html=True), name="web")
 
+        # Browsers otherwise reuse old app.js/styles.css after a deploy; no-cache means "revalidate"
+        # (a cheap 304 via ETag), not "don't store".
+        @app.middleware("http")
+        async def revalidate_front_door(request, call_next):
+            response = await call_next(request)
+            path = request.url.path
+            if not path.startswith(("/api/", "/auth", "/admin")) and "cache-control" not in response.headers:
+                response.headers["Cache-Control"] = "no-cache"
+            return response
+
     return app
 
 
