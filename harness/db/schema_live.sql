@@ -42,3 +42,16 @@ CREATE TABLE IF NOT EXISTS course_stats (
   enrolled    integer NOT NULL,
   checked_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Learn@NCSA activity feed (local_ncsahub outbox, pulled hourly). Moodle user ids only: no names or emails.
+CREATE TABLE IF NOT EXISTS moodle_events (
+  id           bigint PRIMARY KEY,          -- outbox id on Learn@NCSA
+  kind         text NOT NULL,               -- enrolled | unenrolled | course_completed | activity_completion
+  moodle_user  bigint NOT NULL,
+  course_id    bigint NOT NULL,
+  cm_id        bigint NOT NULL DEFAULT 0,
+  state        integer NOT NULL DEFAULT 1,
+  at           timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS moodle_events_course_at ON moodle_events (course_id, at);
+CREATE INDEX IF NOT EXISTS moodle_events_kind_at ON moodle_events (kind, at);
