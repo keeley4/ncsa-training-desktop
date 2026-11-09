@@ -220,10 +220,22 @@ components:
         organization: { type: [string, "null"] }
         identityProvider: { type: [string, "null"], description: "Identity provider used for this sign-in." }
         lastLoginAt: { type: [string, "null"], format: date-time }
+        moodle: { $ref: "#/components/schemas/MoodleLink" }
         identities:
           type: array
           description: Every identity linked to the Globus account; the identity-crosswalk match keys.
           items: { $ref: "#/components/schemas/LinkedIdentity" }
+    MoodleLink:
+      type: object
+      additionalProperties: false
+      required: [status, accountId]
+      description: >
+        The person's Learn@NCSA account, found at sign-in. linked = matched automatically by a Globus
+        identity username; review = possible match awaiting an administrator; none = no account yet;
+        unavailable = could not be checked. Other candidate accounts are never shown.
+      properties:
+        status: { enum: [linked, review, none, unavailable] }
+        accountId: { type: [integer, "null"] }
     LinkedIdentity:
       type: object
       additionalProperties: false
