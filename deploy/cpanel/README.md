@@ -52,7 +52,13 @@ crontab: 17 * * * * /bin/bash $HOME/harness/deploy/cpanel/sync.sh
 GLOBUS_CLIENT_ID=2d08004e-0033-48ea-8b97-f4cee8ad012e
 GLOBUS_CLIENT_SECRET_FILE=/home/trainingdesktop/.config/ncsahub/globus_client_secret
 PUBLIC_BASE_URL=https://trainingdesktop.web.illinois.edu
+MOODLE_URL=https://learn.ncsa.illinois.edu
+MOODLE_LOOKUP_TOKEN_FILE=/home/trainingdesktop/.config/ncsahub/moodle_lookup_token
 ```
+
+`moodle_lookup_token` (0600) is the IP-restricted token for the "NCSA Hub (user lookup)" service on Learn@NCSA
+(account `ncsahub_lookup`, one function: `core_user_get_users_by_field`). It is used at sign-in to find the
+person's Learn@NCSA account (identity crosswalk). Without it, sign-in still works and the link shows "unavailable".
 
 Without the secret file, `/auth/login` answers 503 "not configured" and `/api/v1/me` says signed out. Test page: `/auth`.
 New tables are created by `PgStore.migrate()` (run after each update; idempotent).
