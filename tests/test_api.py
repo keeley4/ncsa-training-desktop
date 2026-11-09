@@ -31,7 +31,7 @@ def test_single_tile_and_404(client):
     assert r.status_code == 404 and r.json()["error"] == "not_found"
 
 
-@pytest.mark.parametrize("method,path,phase", [("get", "/events", 4), ("post", "/statements", 5)])
+@pytest.mark.parametrize("method,path,phase", [("get", "/offerings", 4), ("post", "/statements", 5)])
 def test_later_phase_stubs(client, method, path, phase):
     r = getattr(client, method)(f"/api/v1{path}")
     assert r.status_code == 501 and r.json()["phase"] == phase
