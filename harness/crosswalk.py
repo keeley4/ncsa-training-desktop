@@ -102,8 +102,8 @@ def resolve(lookup: LookupFn, identities: list[dict[str, Any]], preferred_userna
         return Result("unavailable", reason=exc.errorcode)
 
 
-def moodle_lookup_from_env() -> LookupFn | None:
-    """Lookup function using the IP-restricted user-lookup token, or None if not configured."""
+def moodle_call_from_env() -> Callable[..., Any] | None:
+    """call(wsfunction, **params) with the IP-restricted learner-service token, or None if not configured."""
     site = os.environ.get("MOODLE_URL", "").strip()
     token = os.environ.get("MOODLE_LOOKUP_TOKEN", "").strip()
     tf = os.environ.get("MOODLE_LOOKUP_TOKEN_FILE")
@@ -111,9 +111,16 @@ def moodle_lookup_from_env() -> LookupFn | None:
         token = Path(tf).expanduser().read_text().strip()
     if not (site and token):
         return None
-    client = MoodleClient(site, token, timeout=15.0)
+    return MoodleClient(site, token, timeout=15.0).call
+
+
+def moodle_lookup_from_env() -> LookupFn | None:
+    """Lookup function using the IP-restricted user-lookup token, or None if not configured."""
+    call = moodle_call_from_env()
+    if call is None:
+        return None
 
     def lookup(field_name: str, values: list[str]) -> list[dict[str, Any]]:
-        return client.call("core_user_get_users_by_field", field=field_name, values=values)
+        return call("core_user_get_users_by_field", field=field_name, values=values)
 
     return lookup

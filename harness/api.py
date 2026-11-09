@@ -17,11 +17,12 @@ from fastapi.staticfiles import StaticFiles
 
 from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, Profile, http_token_exchange, make_router
 from .admin import admin_usernames_from_env, make_admin_router, make_is_admin
-from .crosswalk import Result, moodle_lookup_from_env, resolve
+from .crosswalk import Result, moodle_call_from_env, moodle_lookup_from_env, resolve
+from .learner import MemoryEnrolLog, PgEnrolLog, make_learner_router
 from .contract import spec
 from .store import FileStore, PgStore, Store
 
-IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview"}
+IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview", "getMyProgress", "createEnrollment"}
 
 
 def make_store() -> Store:
@@ -36,7 +37,7 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
                web_dir: Path | None = None, lookup=None,
-               admin_usernames: set[str] | None = None) -> FastAPI:
+               admin_usernames: set[str] | None = None, moodle_call=None, enrol_log=None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -64,7 +65,15 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
     app.include_router(make_admin_router(
         auth_store, auth_router.current_user, is_admin,
         get_base_url=lambda: (get_cfg().base_url if get_cfg() else None),
-        get_moodle_url=lambda: os.environ.get("MOODLE_URL")))
+        get_moodle_url=lambda: os.environ.get("MOODLE_URL") or ((st().meta() or {}).get("source") or {}).get("siteUrl")))
+    if enrol_log is None:
+        enrol_log = PgEnrolLog(app.state.store.dsn) if isinstance(app.state.store, PgStore) else MemoryEnrolLog()
+    app.state.enrol_log = enrol_log
+    app.include_router(make_learner_router(
+        get_call=(lambda: moodle_call) if moodle_call is not None else moodle_call_from_env,
+        catalog_store=st, current_user=auth_router.current_user, log=enrol_log,
+        get_base_url=lambda: (get_cfg().base_url if get_cfg() else None),
+        get_moodle_url=lambda: os.environ.get("MOODLE_URL") or ((st().meta() or {}).get("source") or {}).get("siteUrl")))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
