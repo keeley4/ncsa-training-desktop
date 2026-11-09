@@ -23,6 +23,8 @@ tags:
   - name: catalog
   - name: identity
   - name: learner
+  - name: workshops
+  - name: admin
   - name: later
 paths:
   /catalog/meta:
@@ -228,12 +230,72 @@ paths:
         "501": { $ref: "#/components/responses/NotImplemented" }
   /events:
     get:
-      tags: [later]
+      tags: [workshops]
       operationId: listEvents
       x-phase: 4
-      summary: Live sessions (event instances).
+      x-implemented: true
+      summary: Live workshops. Drafts are never listed; cancelled workshops are, with status cancelled.
+      description: >
+        Registration links out to each workshop's own form (registerUrl); this API stores no registrants.
+        Times are ISO 8601 with the workshop's UTC offset. Upcoming = last session has not ended.
+      parameters:
+        - { name: when, in: query, schema: { enum: [upcoming, past, all], default: upcoming } }
       responses:
-        "501": { $ref: "#/components/responses/NotImplemented" }
+        "200":
+          description: Workshops, soonest first (most recent first for past).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkshopList" }
+  /events.ics:
+    get:
+      tags: [workshops]
+      operationId: getEventsFeed
+      x-phase: 4
+      x-implemented: true
+      summary: iCalendar feed of upcoming workshops (and those changed or cancelled in the last 30 days).
+      responses:
+        "200": { description: text/calendar, one VEVENT per session, UTC times, SEQUENCE bumped on every edit. }
+  /events/{eventId}:
+    get:
+      tags: [workshops]
+      operationId: getEvent
+      x-phase: 4
+      x-implemented: true
+      summary: One workshop.
+      parameters:
+        - { name: eventId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: The workshop.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workshop" }
+        "404": { description: Not found (or still a draft). }
+  /events/{eventId}.ics:
+    get:
+      tags: [workshops]
+      operationId: getEventCalendar
+      x-phase: 4
+      x-implemented: true
+      summary: Calendar file for one workshop.
+      parameters:
+        - { name: eventId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: text/calendar attachment. }
+        "404": { description: Not found (or still a draft). }
+  /admin/analytics:
+    get:
+      tags: [admin]
+      operationId: getUsageAnalytics
+      x-phase: 5
+      x-implemented: true
+      summary: Aggregate usage report (administrators only). No user ids or IP addresses are collected.
+      parameters:
+        - { name: days, in: query, schema: { enum: ["7", "30", "90", "365"], default: "30" } }
+      responses:
+        "200": { description: Totals, visits per day, searches, course opens/launches, accounts, enrollment, workshops. }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
   /registrations:
     post:
       tags: [later]
@@ -297,6 +359,39 @@ components:
       properties:
         status: { enum: [linked, review, none, unavailable] }
         accountId: { type: [integer, "null"] }
+    Workshop:
+      type: object
+      additionalProperties: false
+      required: [id, title, summary, programTags, speakers, format, timezone, sessions, status, registerUrl]
+      properties:
+        id: { type: integer }
+        offering: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        programTags: { type: array, items: { type: string } }
+        speakers: { type: string }
+        format: { enum: [webinar, series, hands-on] }
+        timezone: { type: string, examples: [America/Chicago] }
+        sessions:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [start, end]
+            properties:
+              start: { type: string, format: date-time }
+              end: { type: string, format: date-time }
+        status: { enum: [scheduled, cancelled] }
+        registerUrl: { type: [string, "null"] }
+        calendarUrl: { type: [string, "null"] }
+        moodleUrl: { type: [string, "null"] }
+        recordingUrl: { type: [string, "null"] }
+        updatedAt: { type: [string, "null"] }
+    WorkshopList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Workshop" } }
     ProgressList:
       type: object
       additionalProperties: false
