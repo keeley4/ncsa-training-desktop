@@ -54,6 +54,7 @@ GLOBUS_CLIENT_SECRET_FILE=/home/trainingdesktop/.config/ncsahub/globus_client_se
 PUBLIC_BASE_URL=https://trainingdesktop.web.illinois.edu
 MOODLE_URL=https://learn.ncsa.illinois.edu
 MOODLE_LOOKUP_TOKEN_FILE=/home/trainingdesktop/.config/ncsahub/moodle_lookup_token
+ADMIN_USERNAMES=keeley4@illinois.edu
 ```
 
 `moodle_lookup_token` (0600) is the IP-restricted token for the "NCSA Hub (user lookup)" service on Learn@NCSA
