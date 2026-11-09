@@ -129,6 +129,39 @@ def cmd_sync_db(args: argparse.Namespace) -> None:
     print(f"saved as sync run {run_id}")
 
 
+def course_stats(store, call) -> dict[int, int]:
+    """Enrolment counts per catalog course (ids only are requested; nothing but the count is kept)."""
+    from .learner import catalog_courses
+
+    counts = {}
+    for cid in sorted(catalog_courses(store)):
+        users = call("core_enrol_get_enrolled_users", courseid=cid, options=[{"name": "userfields", "value": "id"}])
+        counts[cid] = len(users or [])
+    return counts
+
+
+def cmd_course_stats(args: argparse.Namespace) -> None:
+    from .crosswalk import moodle_call_from_env
+    from .live_store import PgLiveStore, retention_cutoff
+    from .moodle import MoodleError
+    from .store import PgStore
+
+    dsn = args.database_url or os.environ["DATABASE_URL"]
+    live = PgLiveStore(dsn)
+    print(f"purged {live.purge_usage(retention_cutoff())} usage events older than the retention period")
+    call = moodle_call_from_env()
+    if call is None:
+        print("course-stats: no learner-service token configured; skipped")
+        return
+    try:
+        counts = course_stats(PgStore(dsn), call)
+    except MoodleError as exc:
+        print(f"course-stats: Learn@NCSA refused ({exc.errorcode}); skipped")
+        return
+    live.set_course_stats(counts)
+    print(f"course-stats: {len(counts)} courses, {sum(counts.values())} enrolments")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="harness")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -145,8 +178,10 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--clean", action="store_true", help="delete --out first")
     b.add_argument("--report", help="also write the build report (markdown) to this file")
     sub.choices["sync-db"].add_argument("--database-url")
+    cs = sub.add_parser("course-stats", help="refresh Learn@NCSA enrolment counts and purge old usage events")
+    cs.add_argument("--database-url")
     args = p.parse_args(argv)
-    {"build": cmd_build, "sync-db": cmd_sync_db}[args.cmd](args)
+    {"build": cmd_build, "sync-db": cmd_sync_db, "course-stats": cmd_course_stats}[args.cmd](args)
 
 
 if __name__ == "__main__":

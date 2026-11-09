@@ -163,6 +163,12 @@ class MemoryAuthStore:
                             "candidates": link.get("candidates", []), "checkedAt": link.get("checkedAt")})
         return out
 
+    def link_counts(self):
+        out: dict[str, int] = {}
+        for link in self.links.values():
+            out[link["status"]] = out.get(link["status"], 0) + 1
+        return out
+
     def decide(self, user_id, action, moodle_id, admin):
         link = self.links.get(user_id)
         if not link or link["status"] != "review":
@@ -290,6 +296,11 @@ class PgAuthStore:
                    WHERE l.status = 'review' ORDER BY l.checked_at""").fetchall()
         return [{"userId": r[0], "name": r[1] or "", "username": r[2], "email": r[3], "reason": r[4],
                  "candidates": r[5] or [], "checkedAt": r[6].isoformat()} for r in rows]
+
+    def link_counts(self):
+        with self._conn() as conn:
+            rows = conn.execute("SELECT status, count(*) FROM moodle_links GROUP BY status").fetchall()
+        return {r[0]: int(r[1]) for r in rows}
 
     def decide(self, user_id, action, moodle_id, admin):
         with self._conn() as conn:
@@ -430,7 +441,8 @@ def moodle_projection(link: dict[str, Any] | None) -> dict[str, Any]:
 def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                 exchange: Callable[[AuthConfig, str, str], dict[str, Any]] = http_token_exchange,
                 linker: Callable[[Profile], Any] | None = None,
-                is_admin: Callable[[dict[str, Any]], bool] = lambda u: False) -> APIRouter:
+                is_admin: Callable[[dict[str, Any]], bool] = lambda u: False,
+                on_signin: Callable[[], None] | None = None) -> APIRouter:
     r = APIRouter()
 
     def current_user(request: Request) -> dict[str, Any] | None:
@@ -484,6 +496,11 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                 store.set_link(uid, Result("unavailable", reason="error"))
         raw = secrets.token_urlsafe(32)
         store.create_session(hash_session(raw), uid, _now() + timedelta(hours=cfg.session_hours))
+        if on_signin is not None:
+            try:
+                on_signin()
+            except Exception:  # noqa: BLE001  analytics must never block sign-in
+                pass
         resp = RedirectResponse(next_path, status_code=303, headers={"Cache-Control": "no-store"})
         resp.set_cookie(COOKIE, raw, max_age=cfg.session_hours * 3600, path="/", secure=True,
                         httponly=True, samesite="lax")
@@ -512,7 +529,8 @@ def make_router(get_cfg: Callable[[], AuthConfig | None], store: AuthStore,
                     f"({html.escape(user.get('preferred_username') or '')}).</p>"
                     f"<p>Linked identities:</p><ul>{ids}</ul>"
                     f"<p>Learn@NCSA account: {html.escape(LINK_TEXT.get(me_document(user)['user']['moodle']['status'], ''))}</p>"
-                    + ('<p><a href="/admin/review">Account review queue</a></p>' if is_admin(user) else '')
+                    + ('<p>Admin: <a href="/admin/review">Account review queue</a> · <a href="/admin/workshops">Workshops</a> · '
+                       '<a href="/admin/analytics">Usage analytics</a></p>' if is_admin(user) else '')
                     + '<form method="post" action="/auth/logout"><button>Sign out</button></form>')
         elif configured:
             body = '<p>Not signed in.</p><p><a href="/auth/login">Sign in with Globus</a></p>'

@@ -83,6 +83,10 @@ class MemoryEnrolLog:
     def log_enrolment(self, user_id, moodle_id, course_id, result):
         self.rows.append((user_id, moodle_id, course_id, result, time.time()))
 
+    def rows_since(self, days):
+        cutoff = time.time() - days * 86400
+        return [{"course_id": r[2], "result": r[3]} for r in self.rows if r[4] >= cutoff]
+
     def count_enrolments(self, user_id, seconds):
         cutoff = time.time() - seconds
         return sum(1 for r in self.rows if r[3] == "enrolled" and r[4] >= cutoff and (user_id is None or r[0] == user_id))
@@ -100,6 +104,12 @@ class PgEnrolLog:
             conn.execute("INSERT INTO enrol_events (user_id, moodle_id, course_id, result) VALUES (%s, %s, %s, %s)",
                          (user_id, moodle_id, course_id, result))
             conn.commit()
+
+    def rows_since(self, days):
+        with self._psycopg.connect(self.dsn) as conn:
+            rows = conn.execute("SELECT course_id, result FROM enrol_events "
+                                "WHERE created_at > now() - make_interval(days => %s)", (days,)).fetchall()
+        return [{"course_id": r[0], "result": r[1]} for r in rows]
 
     def count_enrolments(self, user_id, seconds):
         with self._psycopg.connect(self.dsn) as conn:

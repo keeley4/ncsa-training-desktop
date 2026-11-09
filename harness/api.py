@@ -18,11 +18,15 @@ from fastapi.staticfiles import StaticFiles
 from .auth import AuthConfig, MemoryAuthStore, PgAuthStore, Profile, http_token_exchange, make_router
 from .admin import admin_usernames_from_env, make_admin_router, make_is_admin
 from .crosswalk import Result, moodle_call_from_env, moodle_lookup_from_env, resolve
-from .learner import MemoryEnrolLog, PgEnrolLog, make_learner_router
+from .learner import MemoryEnrolLog, PgEnrolLog, catalog_courses, make_learner_router
+from .live_store import MemoryLiveStore, PgLiveStore
+from .workshops import make_workshops_router
+from .analytics import make_analytics_router
 from .contract import spec
 from .store import FileStore, PgStore, Store
 
-IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview", "getMyProgress", "createEnrollment"}
+IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview", "getMyProgress", "createEnrollment",
+                           "listEvents"}
 
 
 def make_store() -> Store:
@@ -37,7 +41,8 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
                web_dir: Path | None = None, lookup=None,
-               admin_usernames: set[str] | None = None, moodle_call=None, enrol_log=None) -> FastAPI:
+               admin_usernames: set[str] | None = None, moodle_call=None, enrol_log=None,
+               live_store=None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -60,7 +65,11 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
 
     is_admin = make_is_admin(lambda: {a.lower() for a in admin_usernames} if admin_usernames is not None
                              else admin_usernames_from_env())
-    auth_router = make_router(get_cfg, auth_store, exchange or http_token_exchange, linker, is_admin)
+    if live_store is None:
+        live_store = PgLiveStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else MemoryLiveStore()
+    app.state.live_store = live_store
+    auth_router = make_router(get_cfg, auth_store, exchange or http_token_exchange, linker, is_admin,
+                              on_signin=lambda: live_store.add_usage([{"sid": "", "signed_in": True, "kind": "signin"}]))
     app.include_router(auth_router)
     app.include_router(make_admin_router(
         auth_store, auth_router.current_user, is_admin,
@@ -74,6 +83,16 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
         catalog_store=st, current_user=auth_router.current_user, log=enrol_log,
         get_base_url=lambda: (get_cfg().base_url if get_cfg() else None),
         get_moodle_url=lambda: os.environ.get("MOODLE_URL") or ((st().meta() or {}).get("source") or {}).get("siteUrl")))
+    base_url = lambda: (get_cfg().base_url if get_cfg() else None)  # noqa: E731
+    app.include_router(make_workshops_router(live_store, auth_router.current_user, is_admin, base_url))
+
+    def catalog_titles() -> dict[str, Any]:
+        tiles = st().tiles().get("items", [])
+        return {"courses": {cid: v["title"] for cid, v in catalog_courses(st()).items()},
+                "tiles": {t["id"]: t["title"] for t in tiles}}
+
+    app.include_router(make_analytics_router(live_store, auth_store, enrol_log.rows_since, catalog_titles,
+                                             auth_router.current_user, is_admin, base_url))
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -114,7 +133,7 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
     for path, ops in spec()["paths"].items():
         for method, op in ops.items():
             phase = op.get("x-phase", 1)
-            if phase <= 1 or op["operationId"] in IMPLEMENTED_LATER_PHASE:
+            if phase <= 1 or op["operationId"] in IMPLEMENTED_LATER_PHASE or op.get("x-implemented"):
                 continue
 
             def stub(_phase: int = phase, _op: str = op["operationId"]) -> JSONResponse:
