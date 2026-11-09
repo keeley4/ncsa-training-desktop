@@ -607,7 +607,8 @@
       await loadProgress();
       if (window.NCSA.config.signIn) {
         try { state.workshops = (await api("/events?when=all")).items || []; } catch (_) { state.workshops = []; }
-        $("nav-workshops").hidden = !state.workshops.length;
+        const nav = $("nav-workshops"); // absent if the browser still has an older index.html cached
+        if (nav) nav.hidden = !state.workshops.length;
         usage("visit", (location.hash || "#/").split("/")[1] || "home");
       }
       $("status").textContent = "";
