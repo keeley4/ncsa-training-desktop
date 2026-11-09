@@ -1,5 +1,6 @@
 // NCSA Training front door (Phase 2 prototype): shelves of tiles, side sheet, search and filters.
 // Routes (hash): #/            home (My desktop + every shelf)
+//                #/workshops   live workshops (upcoming and past)
 //                #/shelf/<id>  one shelf as a grid
 //                #/tile/<id>   opens the side sheet over the current view (shareable link)
 "use strict";
@@ -22,6 +23,7 @@
     me: null,          // /me when served by the harness and signed in
     progress: null,    // /me/progress: { status, items }
     byCourse: new Map(), // Moodle course id -> progress item
+    workshops: [],     // /events?when=all (harness only)
   };
 
   // ---------- helpers ----------
@@ -32,6 +34,120 @@
   const shelfTitle = (id) => (state.shelves.find((s) => s.id === id) || {}).title || id;
   // Status messages are for screen readers once the catalog has loaded (role=status, polite).
   const announce = (text) => { $("status").textContent = text; };
+
+  // ---------- usage analytics (harness only; aggregate: random per-session id, no user id) ----------
+  const usage = (() => {
+    let queue = [];
+    let sid = null;
+    const id = () => {
+      if (sid) return sid;
+      try { sid = sessionStorage.getItem("ncsa-training:sid"); } catch (_) { /* private mode */ }
+      if (!sid || !/^[a-f0-9]{16,32}$/.test(sid)) {
+        sid = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
+        try { sessionStorage.setItem("ncsa-training:sid", sid); } catch (_) { /* fine */ }
+      }
+      return sid;
+    };
+    const flush = () => {
+      if (!queue.length || !window.NCSA.config.signIn) { queue = []; return; }
+      const body = JSON.stringify({ sid: id(), events: queue.splice(0, 25) });
+      const blob = new Blob([body], { type: "application/json" });
+      if (!(navigator.sendBeacon && navigator.sendBeacon("/api/v1/usage", blob))) {
+        fetch("/api/v1/usage", { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
+      }
+      if (queue.length) flush();
+    };
+    setInterval(flush, 10000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+    window.addEventListener("pagehide", flush);
+    return (kind, target = "", detail = "", n = null) => {
+      queue.push({ kind, target: String(target), detail: String(detail), n });
+      if (queue.length >= 20) flush();
+    };
+  })();
+
+  // ---------- live workshops (harness only) ----------
+  const wsTime = (w) => {
+    const s = w.sessions[0];
+    if (!s) return "";
+    const tz = w.timezone || "America/Chicago";
+    const d = new Date(s.start);
+    const day = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: tz }).format(d);
+    const t = (x, zone) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz,
+      ...(zone ? { timeZoneName: "short" } : {}) }).format(new Date(x));
+    const more = w.sessions.length > 1 ? ` · ${w.sessions.length} sessions` : "";
+    return `${day} · ${t(s.start)}–${t(s.end, true)}${more}`;
+  };
+  const wsEnded = (w) => w.sessions.length && new Date(w.sessions[w.sessions.length - 1].end) < new Date();
+  const upcomingWorkshops = () => state.workshops.filter((w) => !wsEnded(w));
+  const icsHref = (id) => `${window.NCSA.config.apiBase}/events/${id}.ics`;
+
+  const workshopList = (items, { past = false } = {}) => {
+    const ul = el("ul", { class: "ws-list", role: "list" });
+    for (const w of items) {
+      const d = new Date(w.sessions[0].start);
+      const tz = w.timezone || "America/Chicago";
+      const fmt = (o) => new Intl.DateTimeFormat("en-US", { ...o, timeZone: tz }).format(d);
+      const cancelled = w.status === "cancelled";
+      const actions = el("div", { class: "ws-actions" });
+      if (!past && !cancelled) {
+        if (w.registerUrl) {
+          const reg = el("a", { class: "primary small", href: w.registerUrl, target: "_blank", rel: "noopener",
+            text: "Register", "aria-label": `Register for ${w.title}` });
+          reg.addEventListener("click", () => usage("register_click", w.id));
+          actions.append(reg);
+        }
+        const cal = el("a", { class: "secondary small ws-cal", href: icsHref(w.id), download: "",
+          text: "Add to calendar", "aria-label": `Add ${w.title} to your calendar` });
+        cal.addEventListener("click", () => usage("ics_download", w.id));
+        actions.append(cal);
+      }
+      if (past && w.recordingUrl) {
+        actions.append(el("a", { class: "secondary small ws-cal", href: w.recordingUrl, target: "_blank", rel: "noopener",
+          text: "Watch the recording" }));
+      }
+      if (w.moodleUrl) {
+        actions.append(el("a", { class: "ws-link", href: w.moodleUrl, target: "_blank", rel: "noopener", text: "Self-paced course" }));
+      }
+      const meta = [FORMAT_LABEL[w.format] || "Webinar", w.speakers].filter(Boolean).join(" · ");
+      ul.append(el("li", { class: `ws-item${cancelled ? " cancelled" : ""}${past ? " past" : ""}` },
+        el("div", { class: "ws-date", "aria-hidden": "true" },
+          el("span", { class: "ws-mon", text: fmt({ month: "short" }) }),
+          el("span", { class: "ws-day", text: fmt({ day: "numeric" }) })),
+        el("div", { class: "ws-body" },
+          el("h3", { class: "ws-title", text: w.title }),
+          el("p", { class: "ws-when" }, cancelled ? el("span", { class: "badge cancel", text: "Cancelled" }) : null,
+            ` ${wsTime(w)}`),
+          meta ? el("p", { class: "ws-meta", text: meta }) : null,
+          w.summary ? el("p", { class: "ws-summary", text: w.summary }) : null,
+          actions)));
+    }
+    return ul;
+  };
+  const FORMAT_LABEL = { webinar: "Webinar", series: "Workshop series", "hands-on": "Hands-on workshop" };
+
+  const workshopsSection = () => {
+    const next = upcomingWorkshops().slice(0, 3);
+    if (!next.length) return null;
+    const more = el("a", { class: "see-all", href: "#/workshops", text: `All workshops` });
+    return section("workshops", "Live workshops", "Upcoming online workshops. Register on the workshop's form.",
+      workshopList(next), more);
+  };
+
+  const renderWorkshops = () => {
+    const up = upcomingWorkshops();
+    const past = state.workshops.filter(wsEnded).reverse();
+    const feed = el("a", { class: "see-all", href: `${window.NCSA.config.apiBase}/events.ics`,
+      text: "Subscribe to the calendar feed" });
+    feed.addEventListener("click", () => usage("ics_download", "feed"));
+    $("view").replaceChildren(
+      el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })),
+      section("workshops", "Live workshops", "Online workshops led by NCSA staff. Registration opens the workshop's form.",
+        up.length ? workshopList(up) : el("p", { class: "empty", text: "No upcoming workshops are scheduled right now." }), feed),
+      past.length ? section("past-workshops", "Past workshops", "Recordings are linked when available.",
+        workshopList(past.slice(0, 12), { past: true })) : "");
+    usage("workshops_view");
+  };
 
   // ---------- learner progress (harness only) ----------
   const courseIdOf = (url) => {
@@ -66,8 +182,12 @@
         title,
         el("span", { class: "continue-status" }, p.progress == null && !p.completed ? null : bar,
           el("span", { text: progressText(p) })),
-        el("a", { class: "primary small", href: p.url, target: "_blank", rel: "noopener",
-          text: p.completed ? "Review" : "Continue", "aria-label": `${p.completed ? "Review" : "Continue"} ${p.title} on Learn@NCSA` })));
+        (() => {
+          const a = el("a", { class: "primary small", href: p.url, target: "_blank", rel: "noopener",
+            text: p.completed ? "Review" : "Continue", "aria-label": `${p.completed ? "Review" : "Continue"} ${p.title} on Learn@NCSA` });
+          a.addEventListener("click", () => usage("continue", p.courseId));
+          return a;
+        })()));
     }
     const extra = items.length > shown.length
       ? el("span", { class: "purpose", text: `Showing your ${shown.length} most recent of ${items.length}.` }) : null;
@@ -118,6 +238,8 @@
     view.replaceChildren();
     const cont = continueSection();
     if (cont) view.append(cont);
+    const ws = workshopsSection();
+    if (ws) view.append(ws);
     const pinned = state.pins.map((id) => state.tiles.get(id)).filter(Boolean);
     if (pinned.length) {
       view.append(section("mydesktop", "My desktop", "Your pinned courses, saved in this browser.",
@@ -168,12 +290,17 @@
       hits.length ? tileList(hits, { grid: true, label: "Results" })
         : el("p", { class: "empty", text: "Nothing matches. Try fewer words or clear the filters." }), clear));
     announce(title);
+    clearTimeout(state.searchLog);
+    state.searchLog = setTimeout(() => {
+      if (state.query) usage("search", "", state.query, hits.length);
+    }, 1500);
   };
 
   const renderView = () => {
     if (state.query || state.filters.size) return renderResults();
     const r = parseRoute(state.baseHash);
     if (r.shelf) renderShelf(r.shelf);
+    else if (r.workshops) renderWorkshops();
     else renderHome();
   };
 
@@ -233,6 +360,7 @@
   // then open the course either way (Learn@NCSA handles anything the harness declines).
   $("sheet-launch").addEventListener("click", async (e) => {
     const tile = state.tiles.get(state.currentTile);
+    if (tile) usage("launch", tile.id, progressOf(tile) ? "continue" : linked() ? "start" : "open");
     if (!tile || tile.type === "tool" || !linked() || progressOf(tile)) return;
     const courseId = courseIdOf(tile.launch.url);
     if (!courseId) return;
@@ -276,6 +404,7 @@
   };
 
   const showSheet = (tile) => {
+    usage("tile_open", tile.id);
     fillSheet(tile);
     if (!sheet.open) sheet.showModal();
     $("sheet-title").focus();
@@ -322,6 +451,7 @@
 
   // ---------- routing ----------
   function parseRoute(hash) {
+    if (hash === "#/workshops") return { workshops: true };
     const m = /^#\/(tile|shelf)\/([a-z0-9-]+)$/.exec(hash || "");
     if (!m) return {};
     return m[1] === "tile" ? { tile: m[2] } : { shelf: m[2] };
@@ -375,6 +505,7 @@
     if (state.filters.has(f)) state.filters.delete(f);
     else state.filters.add(f);
     chip.setAttribute("aria-pressed", String(state.filters.has(f)));
+    if (state.filters.has(f)) usage("filter", f);
     renderView();
   }));
 
@@ -474,6 +605,11 @@
       $("footer-meta").textContent = footer(meta);
       await renderAccount();
       await loadProgress();
+      if (window.NCSA.config.signIn) {
+        try { state.workshops = (await api("/events?when=all")).items || []; } catch (_) { state.workshops = []; }
+        $("nav-workshops").hidden = !state.workshops.length;
+        usage("visit", (location.hash || "#/").split("/")[1] || "home");
+      }
       $("status").textContent = "";
       $("status").classList.add("visually-hidden");
       const r = parseRoute(location.hash);

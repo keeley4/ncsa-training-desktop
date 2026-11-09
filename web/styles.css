@@ -205,3 +205,37 @@ main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none;
   .continue-item { grid-template-columns: 1fr auto; }
   .continue-status { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- live workshops (harness only) ---------- */
+.nav-link { text-decoration: none; }
+.ws-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ws-item {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; padding: 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+}
+.ws-date {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; height: 64px;
+  border-radius: 10px; background: var(--badge); line-height: 1.1;
+}
+.ws-mon { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.ws-day { font-size: 24px; font-weight: 700; }
+.ws-title { margin: 0; font-size: 17px; }
+.ws-when { margin: 2px 0 0; font-weight: 600; }
+.ws-meta { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.ws-summary {
+  margin: 6px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ws-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.ws-actions .secondary.small { margin-bottom: 0; text-decoration: none; }
+.ws-link { font-size: 14px; }
+.ws-item.cancelled .ws-title, .ws-item.cancelled .ws-when { text-decoration: line-through; }
+.ws-item.past { opacity: .85; }
+.badge.cancel { background: var(--start); color: var(--start-text); text-decoration: none; display: inline-block; }
+@media (max-width: 600px) {
+  .ws-item { grid-template-columns: 1fr; }
+  .ws-date { flex-direction: row; gap: 6px; height: auto; padding: 4px 10px; width: max-content; }
+  .ws-day { font-size: 16px; }
+}
+@media (max-width: 600px) {
+  .shelf-head { flex-wrap: wrap; }
+}
