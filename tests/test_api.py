@@ -73,3 +73,11 @@ def test_front_door_can_be_turned_off(built_site, monkeypatch):
     monkeypatch.setenv("SERVE_WEB", "0")
     c = TestClient(create_app(FileStore(built_site / "api" / "v1")))
     assert c.get("/").status_code == 404
+
+
+def test_front_door_files_are_revalidated(built_site):
+    from pathlib import Path
+    web = Path(__file__).resolve().parent.parent / "web"
+    c = TestClient(create_app(FileStore(built_site / "api" / "v1"), web_dir=web))
+    for path in ("/", "/app.js", "/styles.css"):
+        assert c.get(path).headers["cache-control"] == "no-cache", path
