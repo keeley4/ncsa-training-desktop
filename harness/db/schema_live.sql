@@ -55,3 +55,16 @@ CREATE TABLE IF NOT EXISTS moodle_events (
 );
 CREATE INDEX IF NOT EXISTS moodle_events_course_at ON moodle_events (course_id, at);
 CREATE INDEX IF NOT EXISTS moodle_events_kind_at ON moodle_events (kind, at);
+
+-- Saved learning paths (From Laptop to Cluster answers), one row per front-door account. Answers are ids
+-- from catalog/paths.yaml; no names, emails or free text. Deleted when the learner removes the path.
+CREATE TABLE IF NOT EXISTS learner_paths (
+  user_id     text PRIMARY KEY,
+  work        text NOT NULL,
+  scale       text NOT NULL,
+  fit         text NOT NULL,
+  ex          text NOT NULL DEFAULT '',
+  par         text NOT NULL DEFAULT '',
+  saved_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
