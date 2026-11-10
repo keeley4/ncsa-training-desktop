@@ -47,10 +47,15 @@ def load_config(source: str | Path | dict[str, Any] | None = None) -> dict[str, 
         raw = yaml.safe_load(p.read_text()) if p.exists() else {}
     raw = raw or {}
     stages = []
-    for s in raw.get("stages") or []:
-        stages.append({"id": s["id"], "title": s["title"], "summary": s.get("summary", ""),
+    for i, s in enumerate(raw.get("stages") or []):
+        # steps = the ordered main line (first = "start with this"); also = off the main line.
+        # Older files list only `tiles`: those become the steps.
+        steps = [_ref(t) for t in (s.get("steps") if s.get("steps") is not None else s.get("tiles")) or []]
+        also = [_ref(t) for t in s.get("also") or [] if _ref(t) not in steps]
+        stages.append({"id": s["id"], "label": str(s.get("label") or i + 1), "title": s["title"],
+                       "summary": s.get("summary", ""), "ready": s.get("ready") or "",
                        "l2cSteps": list(s.get("l2c_steps") or []),
-                       "tiles": [_ref(t) for t in s.get("tiles") or []],
+                       "steps": steps, "also": also, "tiles": steps + also,
                        "offerings": list(s.get("offerings") or [])})
     ids = {s["id"] for s in stages}
     a = raw.get("answers") or {}
@@ -122,18 +127,33 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dic
     pos = ids.index(here) if here in ids else -1
     stages = []
     for i, s in enumerate(cfg["stages"]):
-        stages.append({"id": s["id"], "title": s["title"], "summary": s["summary"], "l2cSteps": s["l2cSteps"],
+        stages.append({"id": s["id"], "label": s["label"], "title": s["title"], "summary": s["summary"],
+                       "ready": s["ready"], "l2cSteps": s["l2cSteps"],
                        "position": "none" if pos < 0 else ("here" if i == pos else ("before" if i < pos else "after")),
+                       "stepIds": [t for t in s["steps"] if t in tile_titles],
+                       "alsoIds": [t for t in s["also"] if t in tile_titles],
                        "tileIds": [t for t in s["tiles"] if t in tile_titles],
                        "workshops": events_for(s["offerings"])})
+    # Where each tile sits on the journey: (stage index, 0 for a step / 1 for "also", position).
+    where: dict[str, tuple[int, int, int]] = {}
+    for si, s in enumerate(cfg["stages"]):
+        for kind, refs in ((0, s["steps"]), (1, s["also"])):
+            for j, t in enumerate(refs):
+                where.setdefault(t, (si, kind, j))
     focus = []
     if here:
         focus = cfg["fit_tiles"].get(ans["fit"], []) + cfg["work_tiles"].get(ans["work"], [])
         if ans.get("par"):
             focus += cfg["par_tiles"].get(ans["par"], [])
         if not focus:
-            focus = next(s["tiles"] for s in cfg["stages"] if s["id"] == here)
-    focus = [t for t in _dedupe(focus) if t in tile_titles][: cfg["focus_max"]]
+            focus = next(s["steps"] for s in cfg["stages"] if s["id"] == here)
+    focus = [t for t in _dedupe(focus) if t in tile_titles]
+    # Journey order, so "do these next" reads as a sequence and agrees with "you are here".
+    # Tiles on no stage keep their candidate order, after the staged ones.
+    order = {t: i for i, t in enumerate(focus)}
+    focus.sort(key=lambda t: (where.get(t, (len(cfg["stages"]), 0, 0)), order[t]))
+    focus = focus[: cfg["focus_max"]]
+    focus_stage = {t: cfg["stages"][where[t][0]]["label"] for t in focus if t in where}
     slugs = [] if general else _dedupe(cfg["fit_offerings"].get(ans["fit"], []) + cfg["work_offerings"].get(ans["work"], []))
     return {
         "general": general,
@@ -142,6 +162,7 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dic
         "here": here,
         "note": "" if here or general else cfg["no_path_note"],
         "focus": focus,
+        "focusStage": focus_stage,
         "focusWorkshops": events_for(slugs)[:3] if here else [],
         "stages": stages,
         "l2cUrl": cfg["l2c_url"],
