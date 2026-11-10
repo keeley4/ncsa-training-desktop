@@ -7,7 +7,8 @@ and the front door asks this API for the path. Signed-in learners can save the a
 on My Desktop. What is stored: those five answers and two timestamps, keyed by the front-door account id.
 No names, no emails, no free text. Analytics reports only counts.
 
-  GET    /api/v1/paths?work=&scale=&fit=&ex=&par=   the path for these answers (public)
+  GET    /api/v1/paths?work=&scale=&fit=&ex=&par=   the path for these answers (public; no answers = the
+                                                    general journey, every stage, for browsing)
   GET    /api/v1/me/path                            {saved: false} or {saved: true, answers, path}
   PUT    /api/v1/me/path   {work, scale, fit, ex, par}  save (same-site, signed in)
   DELETE /api/v1/me/path                            forget the saved answers
@@ -93,13 +94,16 @@ def _dedupe(xs: list[str]) -> list[str]:
     return [x for x in xs if not (x in seen or seen.add(x))]
 
 
-def build_path(cfg: dict[str, Any], ans: dict[str, str], tile_titles: dict[str, str],
+def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dict[str, str],
                workshops: list[dict[str, Any]], now: datetime | None = None) -> dict[str, Any]:
     """Stages in Laptop to Cluster order, the stage the learner is at, and up to focus_max "do these next" tiles.
-    Tiles not on the published front door are dropped, so a course that leaves the catalog drops out."""
+    Tiles not on the published front door are dropped, so a course that leaves the catalog drops out.
+    With no answers (ans None or {}) this is the general journey: every stage, no "here", no focus."""
     now = now or datetime.now(timezone.utc)
-    here = cfg["fit_stage"].get(ans["fit"])
-    up = cfg["scale_up"].get(ans["fit"]) or {}
+    ans = ans or {}
+    general = not ans
+    here = None if general else cfg["fit_stage"].get(ans["fit"])
+    up = {} if general else (cfg["scale_up"].get(ans["fit"]) or {})
     if here and ans["scale"] in (up.get("scales") or []):
         here = up["stage"]
     upcoming = []
@@ -119,7 +123,7 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str], tile_titles: dict[str, 
     stages = []
     for i, s in enumerate(cfg["stages"]):
         stages.append({"id": s["id"], "title": s["title"], "summary": s["summary"], "l2cSteps": s["l2cSteps"],
-                       "position": "here" if i == pos else ("before" if pos >= 0 and i < pos else "after"),
+                       "position": "none" if pos < 0 else ("here" if i == pos else ("before" if i < pos else "after")),
                        "tileIds": [t for t in s["tiles"] if t in tile_titles],
                        "workshops": events_for(s["offerings"])})
     focus = []
@@ -130,12 +134,13 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str], tile_titles: dict[str, 
         if not focus:
             focus = next(s["tiles"] for s in cfg["stages"] if s["id"] == here)
     focus = [t for t in _dedupe(focus) if t in tile_titles][: cfg["focus_max"]]
-    slugs = _dedupe(cfg["fit_offerings"].get(ans["fit"], []) + cfg["work_offerings"].get(ans["work"], []))
+    slugs = [] if general else _dedupe(cfg["fit_offerings"].get(ans["fit"], []) + cfg["work_offerings"].get(ans["work"], []))
     return {
+        "general": general,
         "answers": ans,
         "labels": {k: cfg["answers"][k][v] for k, v in ans.items()},
         "here": here,
-        "note": "" if here else cfg["no_path_note"],
+        "note": "" if here or general else cfg["no_path_note"],
         "focus": focus,
         "focusWorkshops": events_for(slugs)[:3] if here else [],
         "stages": stages,
@@ -222,8 +227,9 @@ def make_paths_router(get_cfg: Callable[[], dict[str, Any]], store: Any, live: A
 
     @r.get("/api/v1/paths")
     def public_path(request: Request) -> Response:
+        q = dict(request.query_params)
         try:
-            ans = clean_answers(get_cfg(), dict(request.query_params))
+            ans = clean_answers(get_cfg(), q) if any(q.get(k) for k in ANSWER_KEYS) else {}
         except ValueError as exc:
             return JSONResponse({"error": "bad_request", "message": str(exc)}, 400)
         return JSONResponse(path_for(ans), headers={"Cache-Control": "public, max-age=300"})
