@@ -292,7 +292,7 @@ main { padding: 8px 16px 40px; max-width: 1280px; margin: 0 auto; outline: none;
 .path-stages { list-style: none; margin: 0; padding: 0; }
 .path-stage { border-left: 4px solid var(--line); padding-left: 14px; margin: 14px 0; }
 .path-stage.here { border-left-color: var(--il-orange); }
-.path-stage.before { opacity: 0.85; }
+.path-stage.before { border-left-style: dashed; }  /* no opacity: it pushed badges below 4.5:1 */
 .path-stage.none { border-left-color: var(--il-blue); }
 .path-stage .shelf { margin-top: 0; }
 .path-stage h3 { font-size: 1.15rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -319,3 +319,14 @@ main { padding: 8px 16px 40px; max-width: 1280px; margin: 0 auto; outline: none;
 
 /* the hidden attribute always wins over component display rules */
 [hidden] { display: none !important; }
+
+/* Ordered learning path (2026-11-10) */
+.badge.step { background: var(--badge); color: var(--head); }
+.tile-level { font-weight: 600; color: var(--text); }
+.journey-land { margin: 10px 0 0; font-weight: 600; }
+.stage-ready { margin: 8px 0 0; font-size: 0.95rem; }
+.stage-also, .path-whole { margin: 10px 0 0; }
+.stage-also > summary, .path-whole > summary { cursor: pointer; font-weight: 700; color: var(--link); width: fit-content; }
+.path-whole { margin-top: 28px; }
+.path-whole > summary { font: 800 clamp(1.1rem, 2vw, 1.35rem) var(--f-head); color: var(--head); }
+.path-answers { font-weight: 600; }

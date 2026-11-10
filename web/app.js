@@ -37,6 +37,10 @@
     return state.shelfIndex.has(first) ? state.shelfIndex.get(first) : 7;
   };
   const shelfTitle = (id) => (state.shelves.find((s) => s.id === id) || {}).title || id;
+  const LEVEL_LABEL = { intro: "Intro", intermediate: "Intermediate", advanced: "Advanced" };
+  const duration = (m) => (!m ? "" : m < 60 ? `${m} min` : `${Math.round((m / 60) * 2) / 2} h`.replace(".5", "½"));
+  // "Intro · 90 min": what a tile is for and what it costs. Empty when neither is curated yet.
+  const levelLine = (t) => [LEVEL_LABEL[t.level], t.minutes ? `about ${duration(t.minutes)}` : ""].filter(Boolean).join(" · ");
   // Status messages are for screen readers once the catalog has loaded (role=status, polite).
   const announce = (text) => { $("status").textContent = text; };
 
@@ -215,25 +219,25 @@
   const stageOfTile = (id) => {
     if (!state.journey) return null;
     const st = state.journey.stages.findIndex((x) => x.tileIds.includes(id));
-    return st >= 0 ? { no: st + 1, stage: state.journey.stages[st] } : null;
+    return st >= 0 ? { no: state.journey.stages[st].label || String(st + 1), stage: state.journey.stages[st] } : null;
   };
 
+  // Newcomers: From Laptop to Cluster is the way in. People who want the lay of the land get one plain link.
   const journeyBanner = () => {
     if (!state.journey) return null;
-    const steps = el("ol", { class: "journey-strip", "aria-label": "Stages from laptop to cluster" },
-      ...state.journey.stages.map((st, i) => el("li", {},
-        el("a", { href: "#/path?view=all", text: `${i + 1}. ${st.title.split(":")[0]}` }))));
     const l2c = el("a", { class: "primary journey-cta", href: state.journey.l2cUrl || L2C_DEFAULT, target: "_blank",
       rel: "noopener", "aria-label": "Find your starting point: a 5-minute interactive, opens in a new tab" },
       el("span", { class: "journey-cta-main", text: "Find your starting point →" }),
-      el("span", { class: "journey-cta-sub", text: "5-minute interactive · answer a few questions about your research" }));
+      el("span", { class: "journey-cta-sub", text: "5 minutes · opens in a new tab" }));
     l2c.addEventListener("click", () => usage("path_view", "banner_l2c"));
+    const land = el("a", { href: "#/path?view=all", text: "See the whole learning path" });
+    land.addEventListener("click", () => usage("path_view", "banner_all"));
     return el("section", { class: "shelf journey-banner", "aria-labelledby": "h-journey" },
       el("div", { class: "shelf-head" }, el("div", {},
-        el("h2", { id: "h-journey", text: "Not sure where to start?" }),
-        el("p", { class: "purpose", text: "Pick a stage of the learning path below, or get courses picked for your research." }))),
-      steps,
-      el("p", { class: "journey-actions" }, l2c));
+        el("h2", { id: "h-journey", text: "New to HPC? Start here." }),
+        el("p", { class: "purpose", text: "Answer a few questions about your research and get your first three courses, in order." }))),
+      el("p", { class: "journey-actions" }, l2c),
+      el("p", { class: "journey-land" }, "Prefer the lay of the land? ", land));
   };
 
   const yourPathSection = () => {
@@ -257,7 +261,7 @@
       const next = "/" + (location.hash || "#/path");
       box.append(el("a", { class: "primary small", href: `/auth/login?next=${encodeURIComponent(next)}`,
         text: "Sign in to save this path" }),
-      el("p", { class: "purpose", text: "Saving keeps this path on My Desktop and shows your progress in each course." }));
+      el("p", { class: "purpose", text: "Sign in to keep this path and see your progress in each course." }));
       return box;
     }
     const send = async (method) => {
@@ -298,16 +302,15 @@
     if (general && saved) addLink(el("a", { href: "#/path", text: "Your saved path" }));
     if (!general) addLink(el("a", { href: "#/path?view=all", text: "See the whole path without your answers" }));
     addLink(el("a", { href: l2c, target: "_blank", rel: "noopener",
-      text: general ? "Find where you are: From Laptop to Cluster (5 minutes)" : "Change your answers in From Laptop to Cluster" }));
+      text: general ? "Not sure where you are? Find your starting point (5 minutes) ↗" : "Change your answers ↗" }));
     const head = el("section", { class: "shelf path-head", "aria-labelledby": "h-path" },
       el("h2", { id: "h-path", text: general ? "Learning path: from laptop to cluster" : "Your learning path" }),
       el("p", { class: "purpose", text: general
-        ? "Four stages, in order. Start at the first one that is new to you, or answer a few questions in From Laptop to Cluster to get courses picked for your research."
+        ? "Start at the first stage that's new to you and take its courses in order."
         : fromL2C
-          ? "From your answers in From Laptop to Cluster: what to learn next, then the rest of the journey."
-          : "What to learn next, then the rest of the journey from laptop to cluster." }),
-      general ? null : el("p", { class: "path-answers" },
-        ...Object.entries(path.labels).map(([k, v]) => el("span", { class: "badge", text: v, title: k }))),
+          ? "From your answers in From Laptop to Cluster: take these in order."
+          : "Take these in order." }),
+      general ? null : el("p", { class: "path-answers", text: `For: ${Object.values(path.labels).join(" · ")}` }),
       general ? null : savePathControls(path.answers),
       links);
     view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← Home" })), head);
@@ -320,27 +323,42 @@
       return;
     }
     const focus = path.focus.map((id) => state.tiles.get(id)).filter(Boolean);
-    if (focus.length) view.append(section("path-next", "Do these next", "Chosen for your kind of work and best-fit resource.",
-      tileList(focus, { label: "Do these next" })));
+    const fs = path.focusStage || {};
+    if (focus.length) view.append(section("path-next", "Do these next", "",
+      tileList(focus, { label: "Do these next", ordered: true,
+        note: (t, i) => `${i + 1}${fs[t.id] ? ` · Stage ${fs[t.id]}` : ""}` })));
     const fw = pathWorkshops(path.focusWorkshops);
     if (fw) view.append(section("path-live", "Live workshops for you", "Upcoming workshops on the same topics.", fw));
-    view.append(el("h2", { class: "path-journey", text: "The whole journey" }),
+    // The rest of the journey is there for context, not to compete with the three picks.
+    const whole = el("details", { class: "path-whole" },
+      el("summary", { text: "See the whole path" }),
       stagesList(path, new Set((path.focusWorkshops || []).map((w) => w.id))));
+    view.append(whole);
   };
 
   const stagesList = (path, shownIds) => {
     const ol = el("ol", { class: "path-stages", "aria-label": "Stages from laptop to cluster" });
     path.stages.forEach((st, i) => {
-      const tiles = st.tileIds.map((id) => state.tiles.get(id)).filter(Boolean);
-      const steps = st.l2cSteps.length ? `From Laptop to Cluster step${st.l2cSteps.length > 1 ? "s" : ""} ${st.l2cSteps.join(", ")}. ` : "";
+      const ids = st.stepIds || st.tileIds; // stepIds since the ordered-path change; tileIds before
+      const steps = ids.map((id) => state.tiles.get(id)).filter(Boolean);
+      const also = (st.alsoIds || []).map((id) => state.tiles.get(id)).filter(Boolean);
       const hid = `h-stage-${st.id}`;
+      const label = st.label || String(i + 1);
       ol.append(el("li", { class: `path-stage ${st.position}` },
         el("section", { class: "shelf", "aria-labelledby": hid },
           el("div", { class: "shelf-head" }, el("div", {},
-            el("h3", { id: hid }, el("span", { class: "stage-no", text: `${i + 1}` }), ` ${st.title} `,
+            el("h3", { id: hid }, el("span", { class: "stage-no", text: label }),
+              el("span", { class: "visually-hidden", text: "Stage " }), ` ${st.title} `,
               st.position === "here" ? el("span", { class: "badge start", text: "You are here" }) : null),
-            el("p", { class: "purpose", text: steps + st.summary }))),
-          tiles.length ? tileList(tiles, { label: st.title }) : el("p", { class: "empty", text: "No courses on this stage yet." }),
+            el("p", { class: "purpose", text: st.summary }))),
+          steps.length
+            ? tileList(steps, { label: `${st.title}, in order`, ordered: true,
+              note: (t, j) => (j === 0 ? "Start with this" : `Then ${j + 1}`) })
+            : el("p", { class: "empty", text: "No courses on this stage yet." }),
+          st.ready ? el("p", { class: "stage-ready" }, el("strong", { text: "Ready for the next stage when: " }), st.ready) : null,
+          also.length ? el("details", { class: "stage-also" },
+            el("summary", { text: `Also useful (${also.length})` }),
+            tileList(also, { label: `${st.title}: also useful` })) : null,
           pathWorkshops(st.workshops.filter((w) => !shownIds.has(w.id))))));
     });
     return ol;
@@ -386,26 +404,28 @@
   };
 
   // ---------- tiles ----------
-  const tileCard = (tile, { startHere = false } = {}) => {
+  const tileCard = (tile, { startHere = false, note = "" } = {}) => {
     const btn = el("button", { class: "tile", type: "button", "data-tile": tile.id, tabindex: "-1", "aria-haspopup": "dialog" });
     const badges = el("span", { class: "tile-badges" },
       el("span", { class: "badge", text: TYPE_LABEL[tile.type] || tile.type }),
       tile.guestAccess ? el("span", { class: "badge open", text: "Open to all" }) : null,
       startHere ? el("span", { class: "badge start", text: "Start here" }) : null,
+      note ? el("span", { class: `badge ${/^(Start|1\b)/.test(note) ? "start" : "step"}`, text: note }) : null,
       progressOf(tile) ? el("span", { class: "badge mine", text: progressText(progressOf(tile)) }) : null,
       state.pins.includes(tile.id) ? el("span", { class: "badge pinned", text: "Pinned" }) : null);
     btn.append(
       tileArt(tile, hueFor(tile)),
       el("span", { class: "tile-title", text: tile.title }),
-      tile.category ? el("span", { class: "tile-cat", text: tile.category.name }) : null,
+      levelLine(tile) ? el("span", { class: "tile-cat tile-level", text: levelLine(tile) })
+        : tile.category ? el("span", { class: "tile-cat", text: tile.category.name }) : null,
       badges);
     btn.addEventListener("click", () => openTile(tile.id, true));
     return el("li", {}, btn);
   };
 
-  const tileList = (tiles, { grid = false, label, startHere = null } = {}) => {
-    const ul = el("ul", { class: grid ? "tiles grid" : "tiles", role: "list", "aria-label": label });
-    for (const t of tiles) ul.append(tileCard(t, { startHere: t.id === startHere }));
+  const tileList = (tiles, { grid = false, label, startHere = null, ordered = false, note = null } = {}) => {
+    const ul = el(ordered ? "ol" : "ul", { class: grid ? "tiles grid" : "tiles", role: "list", "aria-label": label });
+    tiles.forEach((t, i) => ul.append(tileCard(t, { startHere: t.id === startHere, note: note ? note(t, i) : "" })));
     const first = ul.querySelector(".tile");
     if (first) first.tabIndex = 0; // one tab stop per row; arrow keys move within it
     return ul;
@@ -518,8 +538,8 @@
     $("sheet-art").replaceChildren(tileArt(tile, hueFor(tile), "tile-art large", 64));
     const bits = [];
     if (tile.category) bits.push(tile.category.name);
-    if (tile.level) bits.push(tile.level);
-    if (tile.minutes) bits.push(`about ${tile.minutes} min`);
+    if (tile.level) bits.push(LEVEL_LABEL[tile.level] || tile.level);
+    if (tile.minutes) bits.push(`about ${duration(tile.minutes)}`);
     const mine = progressOf(tile);
     if (mine) bits.push(`You're enrolled: ${progressText(mine).toLowerCase()}`);
     else if (linked() && tile.type !== "tool") bits.push(tile.guestAccess ? "Open to everyone" : "Start enrolls you if the course is open to everyone");
@@ -544,8 +564,7 @@
     const onPath = stageOfTile(tile.id);
     if (onPath) {
       if (tracks.childNodes.length) tracks.append(el("br"));
-      tracks.append("Learning path: ", el("a", { href: "#/path?view=all",
-        text: `stage ${onPath.no}, ${onPath.stage.title}` }));
+      tracks.append(el("a", { href: "#/path?view=all", text: `Stage ${onPath.no} of the learning path: ${onPath.stage.title}` }));
     }
     const launch = $("sheet-launch");
     launch.href = tile.launch.url;
