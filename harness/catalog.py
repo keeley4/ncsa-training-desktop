@@ -255,6 +255,10 @@ def build_catalog(source: Any, shelves_cfg: dict[str, Any], now: datetime | None
         minutes = (ov or {}).get("minutes")
         if minutes is not None:
             tiles[tid]["minutes"] = int(minutes)
+        summary = (ov or {}).get("summary")
+        if summary is not None:
+            # For courses whose Moodle summary is empty or unhelpful. Moodle stays the source otherwise.
+            tiles[tid]["summary"] = " ".join(str(summary).split())
 
     # --- shelves
     shelves: list[dict[str, Any]] = []

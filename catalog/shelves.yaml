@@ -122,5 +122,49 @@ tools: {}
   #   summary: Official Delta user guide.
   #   url: https://example.org/
 
-overrides: {}
-  # course:112: { level: intro, minutes: 90 }
+# Levels below are Claude's draft from each course's own description (2026-11-10); Chris to confirm.
+# minutes only where Learn@NCSA states a length (recording length, session times). Unknown = left out, so the
+# tile shows the level alone. Fill the rest from the course owners.
+# summary: only for courses whose Moodle summary is empty; written from the course page contents.
+overrides:
+  course:112:
+    level: intro
+    summary: >-
+      A short reading list for the Linux command line: a recommended video playlist and two text lessons
+      on the most common commands. Start here if you have never used a terminal.
+  course:71:  { level: intro }
+  course:77:  { level: intro }
+  course:114:
+    level: intro
+    summary: >-
+      Recording of a February 2026 webinar. What Jupyter notebooks are, how to run them on ICRN (Illinois
+      Computes Research Notebooks) with nothing to install, and a first look at NumPy, SciPy, Pandas and
+      Matplotlib. Includes slides and two example notebooks to download.
+  course:39:  { level: intro }
+  course:109: { level: intro }
+  course:94:  { level: intro }
+  course:98:  { level: intro, minutes: 90 }
+  course:115: { level: intro }
+  course:97:  { level: intro }
+  course:40:  { level: intro }
+  course:72:  { level: intro }
+  course:34:  { level: intro }
+  course:43:  { level: intro }
+  course:32:  { level: intermediate }
+  course:44:  { level: intermediate }
+  course:76:  { level: intermediate }
+  course:99:  { level: intermediate }
+  course:96:  { level: intermediate, minutes: 60 }
+  course:92:  { level: intermediate }
+  course:116: { level: intermediate }
+  course:33:  { level: intermediate }
+  course:49:  { level: advanced }
+  course:82:  { minutes: 600 }          # ten 1-hour sessions; covers basic to advanced, so no single level
+  course:46:  { level: intro }
+  course:113: { level: intro, minutes: 270 }   # three 90-minute sessions
+  course:17:  { level: intro }
+  course:27:  { level: intro }
+  course:68:
+    summary: >-
+      A YouTube playlist of recorded Delta training webinars. Pick any recording;
+      there is no order to follow.

@@ -6,36 +6,63 @@
 # on the published front door is skipped. Offerings are coordinator offering slugs (/coord/offerings):
 # upcoming scheduled workshops of that offering are shown.
 #
-# DRAFT 2026-11-10: mapping drafted from course titles; Chris to review before promoting it.
+# DRAFT 2026-11-10: mapping drafted from course titles and descriptions; Chris to review.
 
 l2c_url: https://keeley4.github.io/intro_hpc/
 
 # The journey, in Laptop to Cluster order. l2c_steps are its step numbers (1–9).
+#   steps:  the ordered sequence for the stage. The first one is shown as "Start with this".
+#   also:   useful, but not on the main line (a webinar version of a step, a short extra). Shown collapsed.
+#   ready:  one line: how you know you are ready for the next stage.
+#   label:  the stage number people see (defaults to its position). 4a and 4b are two ways to scale up;
+#           neither needs the other.
+# Revised 2026-11-10 after the UX review: stages ordered, mappings fixed, stage 4 split. Chris to confirm.
 stages:
   - id: start
-    title: "Start: outgrowing the laptop"
-    summary: The command line and what a cluster is, before you need one.
+    label: "1"
+    title: "Basics: the command line and what a cluster is"
+    summary: Before you need a cluster. No account needed.
     l2c_steps: [1, 2]
-    tiles: [course:112, course:71, course:77]
+    steps: [course:112, course:71]
+    also: []
+    ready: You can open a terminal, move between folders and edit a file.
     offerings: []
   - id: icrn
-    title: "Bigger laptop: ICRN notebooks"
-    summary: Jupyter, RStudio or VS Code at NCSA, with nothing to install.
+    label: "2"
+    title: "Notebooks at NCSA (ICRN)"
+    summary: Jupyter, RStudio or VS Code in your browser, with nothing to install.
     l2c_steps: [3]
-    tiles: [course:114]
+    steps: [course:114]
+    also: []
+    ready: Your notebook runs out of time or memory, or you need many runs at once.
     offerings: [jupyter-icrn, deep-learning-icrn]
   - id: cluster
-    title: "Cluster: batch jobs on the Campus Cluster"
-    summary: Accounts, Slurm job scripts, partitions and job arrays.
+    label: "3"
+    title: "Batch jobs on the Campus Cluster"
+    summary: An account, files, software modules and Slurm job scripts.
     l2c_steps: [4, 6, 7]
-    tiles: [course:39, course:109, course:97, course:40, course:32]
-    offerings: [getting-started-icc, gpus-on-icc, intro-parallel-computing, container-basics]
-  - id: scale
-    title: "Scale up: parallel code, GPUs and national systems"
-    summary: MPI and OpenMP, performance tools, GPUs, and Delta or DeltaAI.
-    l2c_steps: [5, 8]
-    tiles: [course:94, course:98, course:115, course:72, course:34, course:43, course:49, course:44, course:76, course:99, course:33]
-    offerings: [getting-started-delta, getting-started-deltaai, psc-mpi, psc-openmp, psc-openacc, nvidia-gpus-python]
+    steps: [course:39, course:77, course:32]
+    also: [course:109]
+    ready: You can log in, load a module and submit a batch job that finishes.
+    offerings: [getting-started-icc, gpus-on-icc, container-basics]
+  - id: parallel
+    label: "4a"
+    title: "Parallel code: OpenMP and MPI"
+    summary: Make one program use many cores, then many nodes.
+    l2c_steps: [5]
+    steps: [course:40, course:72, course:43, course:49]
+    also: [course:34, course:33]
+    ready: ""
+    offerings: [intro-parallel-computing, psc-mpi, psc-openmp]
+  - id: systems
+    label: "4b"
+    title: "Bigger systems: Delta, DeltaAI and GPUs"
+    summary: National systems, GPU programming and measuring performance.
+    l2c_steps: [8]
+    steps: [course:94, course:99, course:44]
+    also: [course:98, course:115, course:96, course:97, course:76, course:92]
+    ready: ""
+    offerings: [getting-started-delta, getting-started-deltaai, psc-openacc, nvidia-gpus-python]
 
 # Allowed answers (ids must match Laptop to Cluster; names are what people see).
 answers:
@@ -72,23 +99,24 @@ answers:
     - { id: "no", name: Code uses one core }
 
 # Where the learner is, from Laptop to Cluster's best-fit resource. null = no course path (web hosting).
-fit_stage: { lap: start, icrn: icrn, iccp: cluster, delta: scale, dai: scale, rad: null, cpanel: null }
-# Large Campus Cluster work is already "scale up".
+fit_stage: { lap: start, icrn: icrn, iccp: cluster, delta: systems, dai: systems, rad: null, cpanel: null }
+# Large Campus Cluster work is already "parallel code".
 scale_up:
-  iccp: { scales: [L], stage: scale }
+  iccp: { scales: [L], stage: parallel }
 
-# "Do these next": best-fit resource first, then kind of work, then the parallel-code answer.
+# "Do these next": candidates from the best-fit resource, the kind of work and the parallel-code answer,
+# then put in journey order (stage, then step) and cut to focus_max. One pick per topic: no webinar twins.
 fit_tiles:
   lap: [course:112]
   icrn: [course:114]
-  iccp: [course:39, course:109]
-  delta: [course:94, course:98]
-  dai: [course:115, course:96]
+  iccp: [course:39]
+  delta: [course:94]
+  dai: [course:115]
 work_tiles:
   explore: [course:114]
   mem: [course:32, course:92]
   sweep: [course:97]
-  sim: [course:72, course:34]
+  sim: [course:72, course:43]
   gpusim: [course:99]
   train: [course:82, course:116]
 par_tiles:
@@ -105,5 +133,5 @@ work_offerings:
   sim: [intro-parallel-computing, psc-mpi]
   sweep: [intro-parallel-computing]
 
-focus_max: 4
+focus_max: 3
 no_path_note: Websites and shared apps are not covered by courses yet. Contact NCSA System Support for help getting started.
