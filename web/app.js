@@ -237,7 +237,7 @@
         el("h2", { id: "h-journey", text: "New to HPC? Start here." }),
         el("p", { class: "purpose", text: "Answer a few questions about your research and get your first three courses, in order." }))),
       el("p", { class: "journey-actions" }, l2c),
-      el("p", { class: "journey-land" }, "Prefer the lay of the land? ", land));
+      el("p", { class: "journey-land" }, land));
   };
 
   const yourPathSection = () => {
