@@ -3,6 +3,8 @@
 //                #/workshops   live workshops (upcoming and past)
 //                #/shelf/<id>  one shelf as a grid
 //                #/tile/<id>   opens the side sheet over the current view (shareable link)
+//                #/path?work=&scale=&fit=&ex=&par=   learning path from From Laptop to Cluster (harness only);
+//                #/path        the signed-in learner's saved path
 "use strict";
 
 (() => {
@@ -24,6 +26,7 @@
     progress: null,    // /me/progress: { status, items }
     byCourse: new Map(), // Moodle course id -> progress item
     workshops: [],     // /events?when=all (harness only)
+    myPath: null,      // /me/path: { saved, answers, path }
   };
 
   // ---------- helpers ----------
@@ -194,6 +197,148 @@
     return section("continue", "Continue learning", "Your Learn@NCSA courses, most recent first.", ul, extra);
   };
 
+
+  // ---------- learning paths from From Laptop to Cluster (harness only) ----------
+  const PATH_KEYS = ["work", "scale", "fit", "ex", "par"];
+  const L2C_DEFAULT = "https://keeley4.github.io/intro_hpc/";
+  const sameAnswers = (a, b) => !!a && !!b && PATH_KEYS.every((k) => (a[k] || "") === (b[k] || ""));
+
+  const loadMyPath = async () => {
+    if (!state.me) { state.myPath = null; return; }
+    try { state.myPath = await api("/me/path"); } catch (_) { state.myPath = null; }
+  };
+
+  const pathWorkshops = (items) => (items && items.length ? workshopList(items) : null);
+
+  const yourPathSection = () => {
+    const mp = state.myPath;
+    if (!mp || !mp.saved || !mp.path.here) return null;
+    const tiles = mp.path.focus.map((id) => state.tiles.get(id)).filter(Boolean);
+    if (!tiles.length) return null;
+    const stage = mp.path.stages.find((x) => x.position === "here");
+    const more = el("a", { class: "see-all", href: "#/path", text: "See your full path" });
+    return section("yourpath", "Your learning path",
+      `${stage ? `You are at: ${stage.title}. ` : ""}Do these next, based on your From Laptop to Cluster answers.`,
+      tileList(tiles, { label: "Your learning path" }), more);
+  };
+
+  const savePathControls = (answers) => {
+    const box = el("div", { class: "path-save" });
+    const status = el("p", { class: "purpose", role: "status" });
+    const saved = state.myPath && state.myPath.saved && sameAnswers(state.myPath.answers, answers);
+    if (!window.NCSA.config.signIn) return null;
+    if (!state.me) {
+      const next = "/" + (location.hash || "#/path");
+      box.append(el("a", { class: "primary small", href: `/auth/login?next=${encodeURIComponent(next)}`,
+        text: "Sign in to save this path" }),
+      el("p", { class: "purpose", text: "Saving keeps this path on My Desktop and shows your progress in each course." }));
+      return box;
+    }
+    const send = async (method) => {
+      const opts = { method, credentials: "same-origin", headers: { "Content-Type": "application/json" } };
+      if (method === "PUT") opts.body = JSON.stringify(answers);
+      const res = await fetch("/api/v1/me/path", opts);
+      if (!res.ok) throw new Error(String(res.status));
+      state.myPath = await res.json();
+      const navPath = $("nav-path");
+      if (navPath) navPath.hidden = !state.myPath.saved;
+    };
+    if (saved) {
+      const rm = el("button", { type: "button", class: "secondary small", text: "Remove saved path" });
+      rm.addEventListener("click", async () => {
+        try { await send("DELETE"); announce("Saved path removed."); renderView(); }
+        catch (_) { status.textContent = "Could not remove the path. Please try again."; }
+      });
+      box.append(el("span", { class: "badge mine", text: "Saved to My Desktop" }), " ", rm);
+    } else {
+      const save = el("button", { type: "button", class: "primary small",
+        text: state.myPath && state.myPath.saved ? "Replace my saved path with this one" : "Save to My Desktop" });
+      save.addEventListener("click", async () => {
+        try { await send("PUT"); announce("Path saved to My Desktop."); renderView(); }
+        catch (_) { status.textContent = "Could not save the path. Please try again."; }
+      });
+      box.append(save, el("p", { class: "purpose",
+        text: "Saves your five answers (kind of work, how much, best-fit resource, research example, parallel code) to your account. Nothing else. You can remove it any time." }));
+    }
+    box.append(status);
+    return box;
+  };
+
+  const drawPath = (path, { fromL2C = false } = {}) => {
+    const view = $("view");
+    const l2c = path.l2cUrl || L2C_DEFAULT;
+    const chips = el("p", { class: "path-answers" },
+      ...Object.entries(path.labels).map(([k, v]) => el("span", { class: "badge", text: v, title: k })));
+    const head = el("section", { class: "shelf path-head", "aria-labelledby": "h-path" },
+      el("h2", { id: "h-path", text: "Your learning path" }),
+      el("p", { class: "purpose", text: fromL2C
+        ? "From your answers in From Laptop to Cluster: what to learn next, then the rest of the journey."
+        : "What to learn next, then the rest of the journey from laptop to cluster." }),
+      chips, savePathControls(path.answers),
+      el("p", { class: "purpose" }, el("a", { href: l2c, target: "_blank", rel: "noopener",
+        text: "Change your answers in From Laptop to Cluster" })));
+    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })), head);
+    if (!path.here) {
+      view.append(el("p", { class: "empty", text: path.note || "No course path for these answers yet." }));
+      return;
+    }
+    const focus = path.focus.map((id) => state.tiles.get(id)).filter(Boolean);
+    if (focus.length) view.append(section("path-next", "Do these next", "Chosen for your kind of work and best-fit resource.",
+      tileList(focus, { label: "Do these next" })));
+    const fw = pathWorkshops(path.focusWorkshops);
+    if (fw) view.append(section("path-live", "Live workshops for you", "Upcoming workshops on the same topics.", fw));
+    const shownIds = new Set((path.focusWorkshops || []).map((w) => w.id));
+    const ol = el("ol", { class: "path-stages", "aria-label": "Stages from laptop to cluster" });
+    path.stages.forEach((st, i) => {
+      const tiles = st.tileIds.map((id) => state.tiles.get(id)).filter(Boolean);
+      const steps = st.l2cSteps.length ? `From Laptop to Cluster step${st.l2cSteps.length > 1 ? "s" : ""} ${st.l2cSteps.join(", ")}. ` : "";
+      const hid = `h-stage-${st.id}`;
+      ol.append(el("li", { class: `path-stage ${st.position}` },
+        el("section", { class: "shelf", "aria-labelledby": hid },
+          el("div", { class: "shelf-head" }, el("div", {},
+            el("h3", { id: hid }, el("span", { class: "stage-no", text: `${i + 1}` }), ` ${st.title} `,
+              st.position === "here" ? el("span", { class: "badge start", text: "You are here" }) : null),
+            el("p", { class: "purpose", text: steps + st.summary }))),
+          tiles.length ? tileList(tiles, { label: st.title }) : el("p", { class: "empty", text: "No courses on this stage yet." }),
+          pathWorkshops(st.workshops.filter((w) => !shownIds.has(w.id))))));
+    });
+    view.append(el("h2", { class: "path-journey", text: "The whole journey" }), ol);
+  };
+
+  const renderPath = async (params) => {
+    const view = $("view");
+    if (!window.NCSA.config.signIn) {
+      view.replaceChildren(el("p", { class: "empty", text: "Learning paths are available on trainingdesktop.web.illinois.edu." }));
+      return;
+    }
+    const answers = Object.fromEntries(PATH_KEYS.filter((k) => params.get(k)).map((k) => [k, params.get(k)]));
+    const fromL2C = params.get("from") === "l2c";
+    if (answers.work) {
+      view.replaceChildren(el("p", { class: "empty", text: "Loading your path…" }));
+      try {
+        const q = new URLSearchParams(answers).toString();
+        const res = await fetch(`/api/v1/paths?${q}`, { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error(String(res.status));
+        const path = await res.json();
+        drawPath(path, { fromL2C });
+        usage("path_view", fromL2C ? "l2c" : "", `${path.answers.work}:${path.answers.scale}:${path.answers.fit}`);
+      } catch (_) {
+        view.replaceChildren(el("p", { class: "empty", text: "That path link is not valid. Try From Laptop to Cluster again." }));
+      }
+      return;
+    }
+    if (state.myPath && state.myPath.saved) {
+      drawPath(state.myPath.path);
+      const a = state.myPath.answers;
+      usage("path_view", "saved", `${a.work}:${a.scale}:${a.fit}`);
+      return;
+    }
+    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })),
+      section("path-empty", "Your learning path", "Answer a few questions in From Laptop to Cluster to get a path of courses.",
+        el("p", {}, el("a", { class: "primary small", href: L2C_DEFAULT, target: "_blank", rel: "noopener",
+          text: "Open From Laptop to Cluster" }))));
+  };
+
   // ---------- tiles ----------
   const tileCard = (tile, { startHere = false } = {}) => {
     const btn = el("button", { class: "tile", type: "button", "data-tile": tile.id, tabindex: "-1", "aria-haspopup": "dialog" });
@@ -236,6 +381,8 @@
   const renderHome = () => {
     const view = $("view");
     view.replaceChildren();
+    const yp = yourPathSection();
+    if (yp) view.append(yp);
     const cont = continueSection();
     if (cont) view.append(cont);
     const ws = workshopsSection();
@@ -301,6 +448,7 @@
     const r = parseRoute(state.baseHash);
     if (r.shelf) renderShelf(r.shelf);
     else if (r.workshops) renderWorkshops();
+    else if (r.path) renderPath(r.path);
     else renderHome();
   };
 
@@ -452,6 +600,8 @@
   // ---------- routing ----------
   function parseRoute(hash) {
     if (hash === "#/workshops") return { workshops: true };
+    const pm = /^#\/path(?:\?(.*))?$/.exec(hash || "");
+    if (pm) return { path: new URLSearchParams(pm[1] || "") };
     const m = /^#\/(tile|shelf)\/([a-z0-9-]+)$/.exec(hash || "");
     if (!m) return {};
     return m[1] === "tile" ? { tile: m[2] } : { shelf: m[2] };
@@ -605,11 +755,14 @@
       $("footer-meta").textContent = footer(meta);
       await renderAccount();
       await loadProgress();
+      await loadMyPath();
       if (window.NCSA.config.signIn) {
         try { state.workshops = (await api("/events?when=all")).items || []; } catch (_) { state.workshops = []; }
         const nav = $("nav-workshops"); // absent if the browser still has an older index.html cached
         if (nav) nav.hidden = !state.workshops.length;
-        usage("visit", (location.hash || "#/").split("/")[1] || "home");
+        const navPath = $("nav-path");
+        if (navPath) navPath.hidden = !(state.myPath && state.myPath.saved);
+        usage("visit", ((location.hash || "#/").split("/")[1] || "home").split("?")[0]);
       }
       $("status").textContent = "";
       $("status").classList.add("visually-hidden");

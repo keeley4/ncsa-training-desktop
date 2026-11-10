@@ -239,3 +239,19 @@ main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none;
 @media (max-width: 600px) {
   .shelf-head { flex-wrap: wrap; }
 }
+
+/* learning path (From Laptop to Cluster) */
+.path-answers { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.path-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.path-save .purpose { flex-basis: 100%; margin: 0; }
+.path-journey { font-size: 1.15rem; margin: 28px 0 4px; }
+.path-stages { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.path-stage { border-left: 4px solid var(--line, #dde1e6); padding-left: 12px; margin: 10px 0; }
+.path-stage.here { border-left-color: var(--accent-2); }
+.path-stage.before { opacity: 0.85; }
+.path-stage h3 { font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stage-no { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center;
+  border: 2px solid currentColor; font-size: 13px; font-weight: 700; flex: none; }
+
+/* the hidden attribute always wins over component display rules */
+[hidden] { display: none !important; }
