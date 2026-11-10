@@ -153,6 +153,49 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProgressList" }
         "401": { description: Not signed in. }
+  /paths:
+    get:
+      tags: [learner]
+      operationId: getPath
+      x-phase: 3
+      x-implemented: true
+      summary: Learning path for From Laptop to Cluster answers (work, scale, fit; optional ex, par).
+      description: >
+        Public. Answers must be ids from catalog/paths.yaml. Returns the stages in Laptop to Cluster order,
+        the stage the learner is at (here), up to four "do these next" tile ids (focus), and upcoming
+        scheduled workshops of the mapped offerings.
+      responses:
+        "200": { description: The path. }
+        "400": { description: Unknown or missing answer. }
+  /me/path:
+    get:
+      tags: [learner]
+      operationId: getMyPath
+      x-phase: 3
+      x-implemented: true
+      summary: The signed-in learner's saved path, if any.
+      responses:
+        "200": { description: "{saved: false} or {saved: true, answers, path}." }
+        "401": { description: Not signed in. }
+    put:
+      tags: [learner]
+      operationId: saveMyPath
+      x-phase: 3
+      x-implemented: true
+      summary: Save the answers (same-site). Stores the five answer ids only.
+      responses:
+        "200": { description: Saved; returns the path. }
+        "400": { description: Unknown or missing answer. }
+        "401": { description: Not signed in. }
+    delete:
+      tags: [learner]
+      operationId: deleteMyPath
+      x-phase: 3
+      x-implemented: true
+      summary: Forget the saved answers (same-site).
+      responses:
+        "200": { description: "{saved: false}." }
+        "401": { description: Not signed in. }
   /enrollments:
     post:
       tags: [learner]
