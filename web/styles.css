@@ -253,5 +253,16 @@ main { padding: 8px 16px 32px; max-width: 1280px; margin: 0 auto; outline: none;
 .stage-no { display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center;
   border: 2px solid currentColor; font-size: 13px; font-weight: 700; flex: none; }
 
+/* learning path entry points */
+.journey-banner { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.journey-strip { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; padding: 0; }
+.journey-strip li a { display: inline-block; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line);
+  text-decoration: none; color: var(--text); font-size: 14px; }
+.journey-strip li a:hover, .journey-strip li a:focus-visible { border-color: var(--accent-2); }
+.journey-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
+.path-links { font-size: 14px; }
+.path-stage.none { border-left-color: var(--line); }
+.tracks-path { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 4px; font-weight: 600; }
+
 /* the hidden attribute always wins over component display rules */
 [hidden] { display: none !important; }

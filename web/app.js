@@ -4,7 +4,8 @@
 //                #/shelf/<id>  one shelf as a grid
 //                #/tile/<id>   opens the side sheet over the current view (shareable link)
 //                #/path?work=&scale=&fit=&ex=&par=   learning path from From Laptop to Cluster (harness only);
-//                #/path        the signed-in learner's saved path
+//                #/path        the signed-in learner's saved path, else the general journey
+//                #/path?view=all  the general journey (every stage, no answers)
 "use strict";
 
 (() => {
@@ -27,6 +28,7 @@
     byCourse: new Map(), // Moodle course id -> progress item
     workshops: [],     // /events?when=all (harness only)
     myPath: null,      // /me/path: { saved, answers, path }
+    journey: null,     // /paths with no answers: the general laptop-to-cluster journey (stage of each tile)
   };
 
   // ---------- helpers ----------
@@ -210,9 +212,32 @@
 
   const pathWorkshops = (items) => (items && items.length ? workshopList(items) : null);
 
+  const stageOfTile = (id) => {
+    if (!state.journey) return null;
+    const st = state.journey.stages.findIndex((x) => x.tileIds.includes(id));
+    return st >= 0 ? { no: st + 1, stage: state.journey.stages[st] } : null;
+  };
+
+  const journeyBanner = () => {
+    if (!state.journey) return null;
+    const steps = el("ol", { class: "journey-strip", "aria-label": "Stages from laptop to cluster" },
+      ...state.journey.stages.map((st, i) => el("li", {},
+        el("a", { href: "#/path?view=all", text: `${i + 1}. ${st.title.split(":")[0]}` }))));
+    const l2c = el("a", { class: "secondary small", href: state.journey.l2cUrl || L2C_DEFAULT, target: "_blank",
+      rel: "noopener", text: "Find where you are (5-minute interactive)" });
+    l2c.addEventListener("click", () => usage("path_view", "banner_l2c"));
+    return el("section", { class: "shelf journey-banner", "aria-labelledby": "h-journey" },
+      el("div", { class: "shelf-head" }, el("div", {},
+        el("h2", { id: "h-journey", text: "Not sure where to start?" }),
+        el("p", { class: "purpose", text: "Follow the learning path from your laptop to NCSA's clusters, or answer a few questions to get courses picked for your research." }))),
+      steps,
+      el("p", { class: "journey-actions" },
+        el("a", { class: "primary small", href: "#/path?view=all", text: "See the learning path" }), " ", l2c));
+  };
+
   const yourPathSection = () => {
     const mp = state.myPath;
-    if (!mp || !mp.saved || !mp.path.here) return null;
+    if (!mp || !mp.saved || !mp.path.here) return journeyBanner();
     const tiles = mp.path.focus.map((id) => state.tiles.get(id)).filter(Boolean);
     if (!tiles.length) return null;
     const stage = mp.path.stages.find((x) => x.position === "here");
@@ -240,8 +265,6 @@
       const res = await fetch("/api/v1/me/path", opts);
       if (!res.ok) throw new Error(String(res.status));
       state.myPath = await res.json();
-      const navPath = $("nav-path");
-      if (navPath) navPath.hidden = !state.myPath.saved;
     };
     if (saved) {
       const rm = el("button", { type: "button", class: "secondary small", text: "Remove saved path" });
@@ -267,17 +290,30 @@
   const drawPath = (path, { fromL2C = false } = {}) => {
     const view = $("view");
     const l2c = path.l2cUrl || L2C_DEFAULT;
-    const chips = el("p", { class: "path-answers" },
-      ...Object.entries(path.labels).map(([k, v]) => el("span", { class: "badge", text: v, title: k })));
+    const general = !!path.general;
+    const saved = state.myPath && state.myPath.saved;
+    const links = el("p", { class: "path-links" });
+    const addLink = (a) => { if (links.childNodes.length) links.append(" · "); links.append(a); };
+    if (general && saved) addLink(el("a", { href: "#/path", text: "Your saved path" }));
+    if (!general) addLink(el("a", { href: "#/path?view=all", text: "See the whole path without your answers" }));
+    addLink(el("a", { href: l2c, target: "_blank", rel: "noopener",
+      text: general ? "Find where you are: From Laptop to Cluster (5 minutes)" : "Change your answers in From Laptop to Cluster" }));
     const head = el("section", { class: "shelf path-head", "aria-labelledby": "h-path" },
-      el("h2", { id: "h-path", text: "Your learning path" }),
-      el("p", { class: "purpose", text: fromL2C
-        ? "From your answers in From Laptop to Cluster: what to learn next, then the rest of the journey."
-        : "What to learn next, then the rest of the journey from laptop to cluster." }),
-      chips, savePathControls(path.answers),
-      el("p", { class: "purpose" }, el("a", { href: l2c, target: "_blank", rel: "noopener",
-        text: "Change your answers in From Laptop to Cluster" })));
-    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })), head);
+      el("h2", { id: "h-path", text: general ? "Learning path: from laptop to cluster" : "Your learning path" }),
+      el("p", { class: "purpose", text: general
+        ? "Four stages, in order. Start at the first one that is new to you, or answer a few questions in From Laptop to Cluster to get courses picked for your research."
+        : fromL2C
+          ? "From your answers in From Laptop to Cluster: what to learn next, then the rest of the journey."
+          : "What to learn next, then the rest of the journey from laptop to cluster." }),
+      general ? null : el("p", { class: "path-answers" },
+        ...Object.entries(path.labels).map(([k, v]) => el("span", { class: "badge", text: v, title: k }))),
+      general ? null : savePathControls(path.answers),
+      links);
+    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← Home" })), head);
+    if (general) {
+      view.append(stagesList(path, new Set()));
+      return;
+    }
     if (!path.here) {
       view.append(el("p", { class: "empty", text: path.note || "No course path for these answers yet." }));
       return;
@@ -287,7 +323,11 @@
       tileList(focus, { label: "Do these next" })));
     const fw = pathWorkshops(path.focusWorkshops);
     if (fw) view.append(section("path-live", "Live workshops for you", "Upcoming workshops on the same topics.", fw));
-    const shownIds = new Set((path.focusWorkshops || []).map((w) => w.id));
+    view.append(el("h2", { class: "path-journey", text: "The whole journey" }),
+      stagesList(path, new Set((path.focusWorkshops || []).map((w) => w.id))));
+  };
+
+  const stagesList = (path, shownIds) => {
     const ol = el("ol", { class: "path-stages", "aria-label": "Stages from laptop to cluster" });
     path.stages.forEach((st, i) => {
       const tiles = st.tileIds.map((id) => state.tiles.get(id)).filter(Boolean);
@@ -302,7 +342,7 @@
           tiles.length ? tileList(tiles, { label: st.title }) : el("p", { class: "empty", text: "No courses on this stage yet." }),
           pathWorkshops(st.workshops.filter((w) => !shownIds.has(w.id))))));
     });
-    view.append(el("h2", { class: "path-journey", text: "The whole journey" }), ol);
+    return ol;
   };
 
   const renderPath = async (params) => {
@@ -327,14 +367,19 @@
       }
       return;
     }
-    if (state.myPath && state.myPath.saved) {
+    if (params.get("view") !== "all" && state.myPath && state.myPath.saved) {
       drawPath(state.myPath.path);
       const a = state.myPath.answers;
       usage("path_view", "saved", `${a.work}:${a.scale}:${a.fit}`);
       return;
     }
-    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })),
-      section("path-empty", "Your learning path", "Answer a few questions in From Laptop to Cluster to get a path of courses.",
+    if (state.journey) {
+      drawPath(state.journey);
+      usage("path_view", "general");
+      return;
+    }
+    view.replaceChildren(el("p", { class: "crumb" }, el("a", { href: "#/", text: "← Home" })),
+      section("path-empty", "Learning path", "Answer a few questions in From Laptop to Cluster to get a path of courses.",
         el("p", {}, el("a", { class: "primary small", href: L2C_DEFAULT, target: "_blank", rel: "noopener",
           text: "Open From Laptop to Cluster" }))));
   };
@@ -494,6 +539,12 @@
         if (i) tracks.append(", ");
         tracks.append(el("a", { href: `#/shelf/${sid}`, text: shelfTitle(sid) }));
       });
+    }
+    const onPath = stageOfTile(tile.id);
+    if (onPath) {
+      if (tracks.childNodes.length) tracks.append(el("br"));
+      tracks.append("Learning path: ", el("a", { href: "#/path?view=all",
+        text: `stage ${onPath.no}, ${onPath.stage.title}` }));
     }
     const launch = $("sheet-launch");
     launch.href = tile.launch.url;
@@ -760,8 +811,13 @@
         try { state.workshops = (await api("/events?when=all")).items || []; } catch (_) { state.workshops = []; }
         const nav = $("nav-workshops"); // absent if the browser still has an older index.html cached
         if (nav) nav.hidden = !state.workshops.length;
+        try { state.journey = await api("/paths"); } catch (_) { state.journey = null; }
         const navPath = $("nav-path");
-        if (navPath) navPath.hidden = !(state.myPath && state.myPath.saved);
+        if (navPath) navPath.hidden = !state.journey;
+        if (state.journey) {
+          $("tracks-list").prepend(el("li", { class: "tracks-path" },
+            el("a", { href: "#/path?view=all", text: "Learning path: laptop to cluster" })));
+        }
         usage("visit", ((location.hash || "#/").split("/")[1] || "home").split("?")[0]);
       }
       $("status").textContent = "";
