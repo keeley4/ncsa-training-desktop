@@ -1,0 +1,109 @@
+# Learning paths for "From Laptop to Cluster" (keeley4/intro_hpc) → front door.
+#
+# Laptop to Cluster's last step sends   #/path?work=&scale=&fit=&ex=&par=   to the front door.
+# This file turns those answers into a staged path of Learn@NCSA courses and live workshops.
+# Edit freely; refs use the same form as shelves.yaml (course:<id>, group:<key>). A course that is not
+# on the published front door is skipped. Offerings are coordinator offering slugs (/coord/offerings):
+# upcoming scheduled workshops of that offering are shown.
+#
+# DRAFT 2026-11-10: mapping drafted from course titles; Chris to review before promoting it.
+
+l2c_url: https://keeley4.github.io/intro_hpc/
+
+# The journey, in Laptop to Cluster order. l2c_steps are its step numbers (1–9).
+stages:
+  - id: start
+    title: "Start: outgrowing the laptop"
+    summary: The command line and what a cluster is, before you need one.
+    l2c_steps: [1, 2]
+    tiles: [course:112, course:71, course:77]
+    offerings: []
+  - id: icrn
+    title: "Bigger laptop: ICRN notebooks"
+    summary: Jupyter, RStudio or VS Code at NCSA, with nothing to install.
+    l2c_steps: [3]
+    tiles: [course:114]
+    offerings: [jupyter-icrn, deep-learning-icrn]
+  - id: cluster
+    title: "Cluster: batch jobs on the Campus Cluster"
+    summary: Accounts, Slurm job scripts, partitions and job arrays.
+    l2c_steps: [4, 6, 7]
+    tiles: [course:39, course:109, course:97, course:40, course:32]
+    offerings: [getting-started-icc, gpus-on-icc, intro-parallel-computing, container-basics]
+  - id: scale
+    title: "Scale up: parallel code, GPUs and national systems"
+    summary: MPI and OpenMP, performance tools, GPUs, and Delta or DeltaAI.
+    l2c_steps: [5, 8]
+    tiles: [course:94, course:98, course:115, course:72, course:34, course:43, course:49, course:44, course:76, course:99, course:33]
+    offerings: [getting-started-delta, getting-started-deltaai, psc-mpi, psc-openmp, psc-openacc, nvidia-gpus-python]
+
+# Allowed answers (ids must match Laptop to Cluster; names are what people see).
+answers:
+  work:
+    - { id: explore, name: Explore and analyze data }
+    - { id: mem, name: Data too big for memory }
+    - { id: sweep, name: Many independent runs }
+    - { id: sim, name: One large simulation }
+    - { id: gpusim, name: GPU-accelerated simulation }
+    - { id: train, name: Train or fine-tune AI models }
+    - { id: web, name: Host a website }
+    - { id: app, name: Share an interactive app }
+  scale:
+    - { id: S, name: Small }
+    - { id: M, name: Medium }
+    - { id: L, name: Large }
+  fit:
+    - { id: lap, name: Your laptop }
+    - { id: icrn, name: ICRN }
+    - { id: iccp, name: Illinois Campus Cluster }
+    - { id: delta, name: Delta }
+    - { id: dai, name: DeltaAI }
+    - { id: rad, name: Radiant }
+    - { id: cpanel, name: Campus web hosting (cPanel) }
+  ex:
+    - { id: climate, name: Weather and climate }
+    - { id: md, name: Molecules and materials }
+    - { id: genomics, name: Genomics and bioinformatics }
+    - { id: ml, name: Machine learning and AI }
+    - { id: social, name: Social and health sciences }
+  par:
+    - { id: "yes", name: Code uses many cores }
+    - { id: notsure, name: Not sure the code uses many cores }
+    - { id: "no", name: Code uses one core }
+
+# Where the learner is, from Laptop to Cluster's best-fit resource. null = no course path (web hosting).
+fit_stage: { lap: start, icrn: icrn, iccp: cluster, delta: scale, dai: scale, rad: null, cpanel: null }
+# Large Campus Cluster work is already "scale up".
+scale_up:
+  iccp: { scales: [L], stage: scale }
+
+# "Do these next": best-fit resource first, then kind of work, then the parallel-code answer.
+fit_tiles:
+  lap: [course:112]
+  icrn: [course:114]
+  iccp: [course:39, course:109]
+  delta: [course:94, course:98]
+  dai: [course:115, course:96]
+work_tiles:
+  explore: [course:114]
+  mem: [course:32, course:92]
+  sweep: [course:97]
+  sim: [course:72, course:34]
+  gpusim: [course:99]
+  train: [course:82, course:116]
+par_tiles:
+  "no": [course:40]
+  notsure: [course:40]
+fit_offerings:
+  icrn: [jupyter-icrn]
+  iccp: [getting-started-icc, gpus-on-icc]
+  delta: [getting-started-delta]
+  dai: [getting-started-deltaai]
+work_offerings:
+  train: [nvidia-gpus-python, deep-learning-icrn]
+  gpusim: [nvidia-gpus-python]
+  sim: [intro-parallel-computing, psc-mpi]
+  sweep: [intro-parallel-computing]
+
+focus_max: 4
+no_path_note: Websites and shared apps are not covered by courses yet. Contact NCSA System Support for help getting started.
