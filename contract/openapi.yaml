@@ -162,7 +162,7 @@ paths:
       summary: Learning path for From Laptop to Cluster answers (work, scale, fit; optional ex, par).
       description: >
         Public. Answers must be ids from catalog/paths.yaml. Returns the stages in Laptop to Cluster order,
-        the stage the learner is at (here), up to four "do these next" tile ids (focus), and upcoming
+        the stage the learner is at (here), up to three "do these next" tile ids in journey order (focus; focusStage gives each one's stage label), and upcoming
         scheduled workshops of the mapped offerings.
       responses:
         "200": { description: The path. }
