@@ -33,8 +33,9 @@ KINDS = {
     "visit": "Visits", "search": "Searches", "filter": "Filter used", "tile_open": "Course details opened",
     "launch": "Launches to Learn@NCSA", "continue": "Continue clicks", "workshops_view": "Workshops page views",
     "register_click": "Register clicks", "ics_download": "Calendar downloads", "signin": "Sign-ins",
+    "path_view": "Learning path views", "path_save": "Learning paths saved",
 }
-CLIENT_KINDS = set(KINDS) - {"signin"}
+CLIENT_KINDS = set(KINDS) - {"signin", "path_save"}
 _SID = re.compile(r"^[a-f0-9]{16,32}$")
 MAX_EVENTS = 25
 PER_SID_HOUR = 400
@@ -98,7 +99,8 @@ def summarize(rows: list[dict[str, Any]], days: int, now: datetime, extras: dict
 
 def make_analytics_router(store: Any, auth_store: Any, enrol_log_rows: Callable[[int], list[dict[str, Any]]],
                           catalog_titles: Callable[[], dict[str, Any]], current_user: Callable[[Request], Any],
-                          is_admin: Callable[[Any], bool], get_base_url: Callable[[], str | None]) -> APIRouter:
+                          is_admin: Callable[[Any], bool], get_base_url: Callable[[], str | None],
+                          paths_report: Callable[[], dict[str, Any]] | None = None) -> APIRouter:
     r = APIRouter()
     seen: dict[str, list[float]] = {}
     lock = threading.Lock()
@@ -153,6 +155,10 @@ def make_analytics_router(store: Any, auth_store: Any, enrol_log_rows: Callable[
         out["workshopTitles"] = {k: workshops.get(k, f"Workshop {k}") for k in out["workshopActions"]}
         out["learn"] = feed.report(store, days, titles["courses"], now)
         out["followThrough"] = feed.follow_through(store, store.list_workshops(), now=now) if out["learn"]["available"] else []
+        out["paths"] = paths_report() if paths_report else None
+        views = [r for r in rows if r["kind"] == "path_view"]
+        out["pathViews"] = {"total": len(views), "fromL2C": sum(1 for r in views if r["target"] == "l2c"),
+                            "byFit": dict(Counter(r["detail"].split(":")[-1] for r in views if r["detail"]))}
         return out
 
     def guard(request: Request) -> Response | None:
@@ -241,6 +247,28 @@ def _learn(d: dict[str, Any]) -> str:
         + '</div>')
 
 
+def _paths(d: dict[str, Any]) -> str:
+    p, v = d.get("paths"), d.get("pathViews") or {}
+    if p is None:
+        return ""
+    def tbl(title: str, items: list[dict[str, Any]]) -> str:
+        return (f'<div><h3 style="font-size:15px;margin:12px 0 4px">{html.escape(title)}</h3>'
+                + _table(["Answer", "Saved paths"], [[i["name"], i["count"]] for i in items], "None yet.") + '</div>')
+    return (
+        '<h2>Learning paths (From Laptop to Cluster)</h2><div class="kpis">'
+        + "".join(f'<div class="kpi"><div class="v">{n:,}</div><div class="l">{html.escape(l)}</div></div>' for l, n in [
+            ("Paths saved (all time)", p["saved"]), ("Path views (period)", v.get("total", 0)),
+            ("Arrived from Laptop to Cluster", v.get("fromL2C", 0))])
+        + '</div><div class="card" style="margin-top:10px"><div class="grid">'
+        + tbl("Kind of work", p["work"]) + tbl("Best-fit resource", p["fit"])
+        + tbl("How much work", p["scale"]) + tbl("Research example", p["example"])
+        + '</div><h3 style="font-size:15px;margin:12px 0 4px">Most common combinations</h3>'
+        + _table(["Kind of work", "How much", "Saved paths"], [[c["work"], c["scale"], c["count"]] for c in p["combos"]],
+                 "No saved paths yet.")
+        + '<p class="muted">Counts only. A saved path stores five answers per account and nothing else; '
+          'learners can remove it.</p></div>')
+
+
 def render(d: dict[str, Any]) -> str:
     t = d["totals"]
     kpi = lambda label, v, sub="": (f'<div class="kpi"><div class="v">{v:,}</div><div class="l">{html.escape(label)}</div>'  # noqa: E731
@@ -301,6 +329,6 @@ def render(d: dict[str, Any]) -> str:
         + (f'<p class="muted">Enrollment counts as of {html.escape(checked[:16].replace("T", " "))} UTC.'
            ' Completion counts need the Learn@NCSA event stream (later phase).</p>' if checked else
            '<p class="muted">Completion counts need the Learn@NCSA event stream (later phase).</p>')
-        + '</div>' + _learn(d) + '<p class="muted"><a href="/api/v1/admin/analytics?days=' + str(d["days"]) + '">JSON</a> · '
+        + '</div>' + _learn(d) + _paths(d) + '<p class="muted"><a href="/api/v1/admin/analytics?days=' + str(d["days"]) + '">JSON</a> · '
         '<a href="/admin/workshops">Workshops</a> · <a href="/admin/review">Account review</a> · <a href="/">Front door</a></p>'
         '</body></html>')

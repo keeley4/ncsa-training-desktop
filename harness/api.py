@@ -25,10 +25,11 @@ from .analytics import make_analytics_router
 from .coord import CoordStore
 from .coord_web import coordinator_usernames_from_env, make_coord_router, make_is_coordinator
 from .contract import spec
+from .paths import MemoryPathStore, PgPathStore, answer_counts, load_config as load_paths, make_paths_router
 from .store import FileStore, PgStore, Store
 
 IMPLEMENTED_LATER_PHASE = {"getMe", "listCrosswalkReview", "decideCrosswalkReview", "getMyProgress", "createEnrollment",
-                           "listEvents"}
+                           "listEvents", "getPath", "getMyPath", "saveMyPath", "deleteMyPath"}
 
 
 def make_store() -> Store:
@@ -44,7 +45,8 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 def create_app(store: Store | None = None, auth_store=None, auth_config=None, exchange=None,
                web_dir: Path | None = None, lookup=None,
                admin_usernames: set[str] | None = None, moodle_call=None, enrol_log=None,
-               live_store=None, coord_store=None, coordinator_usernames: set[str] | None = None) -> FastAPI:
+               live_store=None, coord_store=None, coordinator_usernames: set[str] | None = None,
+               path_store=None, paths_config=None) -> FastAPI:
     app = FastAPI(title="NCSA Training Platform API", version="0.1.0", docs_url="/api/docs", openapi_url=None)
     app.state.store = store or make_store()
 
@@ -93,8 +95,23 @@ def create_app(store: Store | None = None, auth_store=None, auth_config=None, ex
         return {"courses": {cid: v["title"] for cid, v in catalog_courses(st()).items()},
                 "tiles": {t["id"]: t["title"] for t in tiles}}
 
+    paths_cache: dict[str, Any] = {}
+
+    def paths_cfg() -> dict[str, Any]:
+        if paths_config is not None:
+            return load_paths(paths_config)
+        if "cfg" not in paths_cache:  # catalog/paths.yaml is read once per process (a deploy restarts)
+            paths_cache["cfg"] = load_paths()
+        return paths_cache["cfg"]
+
+    if path_store is None:
+        path_store = PgPathStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else MemoryPathStore()
+    app.state.path_store = path_store
+    app.include_router(make_paths_router(paths_cfg, path_store, live_store, lambda: catalog_titles()["tiles"],
+                                         auth_router.current_user, base_url))
     app.include_router(make_analytics_router(live_store, auth_store, enrol_log.rows_since, catalog_titles,
-                                             auth_router.current_user, is_admin, base_url))
+                                             auth_router.current_user, is_admin, base_url,
+                                             paths_report=lambda: answer_counts(path_store.all_paths(), paths_cfg())))
     if coord_store is None:
         coord_store = CoordStore(app.state.store.dsn) if isinstance(app.state.store, PgStore) else CoordStore()
     app.state.coord_store = coord_store
