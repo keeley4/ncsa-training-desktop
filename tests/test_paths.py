@@ -72,7 +72,8 @@ def test_build_path_stage_focus_and_workshops(env):
     p = P.build_path(cfg, P.clean_answers(cfg, Q), titles, live.list_workshops())
     assert p["here"] == "cluster"
     assert [s["position"] for s in p["stages"]] == ["before", "here", "after"]
-    assert p["focus"] == ["course-3", "course-4", "course-2"]           # fit, then work, then par; deduped
+    assert p["focus"] == ["course-2", "course-3", "course-4"]           # fit, work, par candidates; deduped; journey order
+    assert p["focusStage"] == {"course-2": "1", "course-3": "2", "course-4": "3"}
     cl = p["stages"][1]
     assert cl["tileIds"] == ["course-3"]                                  # course 777 is not on the front door
     assert [w["title"] for w in cl["workshops"]] == ["ICC webinar"]       # no drafts, nothing past
@@ -140,7 +141,7 @@ def test_path_view_beacon_counts(env):
 def test_real_mapping_file_loads():
     cfg = P.load_config()
     ids = {s["id"] for s in cfg["stages"]}
-    assert ids == {"start", "icrn", "cluster", "scale"}
+    assert ids == {"start", "icrn", "cluster", "parallel", "systems"}
     for k in ("work", "scale", "fit", "ex", "par"):
         assert cfg["answers"][k]
     assert set(cfg["fit_stage"]) == set(cfg["answers"]["fit"])
@@ -176,3 +177,33 @@ def test_front_door_has_entry_points():
     html, js = (web / "index.html").read_text(), (web / "app.js").read_text()
     assert 'id="nav-path"' in html and ">Learning path<" in html
     assert "journeyBanner" in js and "Learning path: laptop to cluster" in js and "stageOfTile" in js
+
+
+def test_stage_steps_also_label_and_focus_order():
+    conf = dict(CONF, focus_max=2, stages=[
+        {"id": "start", "label": "1", "title": "Start", "steps": ["course:2"], "ready": "Can use a terminal."},
+        {"id": "cluster", "title": "Cluster", "steps": ["course:3"], "also": ["course:4", "course:3"]},
+    ], scale_up={}, fit_stage={"iccp": "cluster", "cpanel": None})
+    cfg = P.load_config(conf)
+    titles = {"course-2": "A", "course-3": "B", "course-4": "C"}
+    p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"}, titles, [])
+    st = p["stages"][1]
+    assert st["label"] == "2"                                   # default label = position
+    assert st["stepIds"] == ["course-3"] and st["alsoIds"] == ["course-4"]   # a step is not repeated in also
+    assert st["tileIds"] == ["course-3", "course-4"]
+    assert p["stages"][0]["ready"] == "Can use a terminal."
+    # candidates: fit course-3, work course-4 + course-3 -> course-3 (step) before course-4 (also); cut to 2
+    assert p["focus"] == ["course-3", "course-4"]
+    assert p["focusStage"] == {"course-3": "2", "course-4": "2"}
+
+
+def test_real_paths_yaml_resolves_and_orders():
+    cfg = P.load_config()
+    seen = [t for s in cfg["stages"] for t in s["steps"]]
+    assert len(seen) == len(set(seen)), "a course is a step on two stages"
+    assert cfg["focus_max"] == 3
+    titles = {t: t for s in cfg["stages"] for t in s["tiles"]}
+    p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp", "par": "yes"}, titles, [])
+    assert p["here"] == "cluster"
+    assert p["focus"] == ["course-39", "course-72", "course-43"]
+    assert [p["focusStage"][t] for t in p["focus"]] == ["3", "4a", "4a"]
