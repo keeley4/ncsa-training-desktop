@@ -223,16 +223,17 @@
     const steps = el("ol", { class: "journey-strip", "aria-label": "Stages from laptop to cluster" },
       ...state.journey.stages.map((st, i) => el("li", {},
         el("a", { href: "#/path?view=all", text: `${i + 1}. ${st.title.split(":")[0]}` }))));
-    const l2c = el("a", { class: "secondary small", href: state.journey.l2cUrl || L2C_DEFAULT, target: "_blank",
-      rel: "noopener", text: "Find where you are (5-minute interactive)" });
+    const l2c = el("a", { class: "primary journey-cta", href: state.journey.l2cUrl || L2C_DEFAULT, target: "_blank",
+      rel: "noopener", "aria-label": "Find your starting point: a 5-minute interactive, opens in a new tab" },
+      el("span", { class: "journey-cta-main", text: "Find your starting point →" }),
+      el("span", { class: "journey-cta-sub", text: "5-minute interactive · answer a few questions about your research" }));
     l2c.addEventListener("click", () => usage("path_view", "banner_l2c"));
     return el("section", { class: "shelf journey-banner", "aria-labelledby": "h-journey" },
       el("div", { class: "shelf-head" }, el("div", {},
         el("h2", { id: "h-journey", text: "Not sure where to start?" }),
-        el("p", { class: "purpose", text: "Follow the learning path from your laptop to NCSA's clusters, or answer a few questions to get courses picked for your research." }))),
+        el("p", { class: "purpose", text: "Pick a stage of the learning path below, or get courses picked for your research." }))),
       steps,
-      el("p", { class: "journey-actions" },
-        el("a", { class: "primary small", href: "#/path?view=all", text: "See the learning path" }), " ", l2c));
+      el("p", { class: "journey-actions" }, l2c));
   };
 
   const yourPathSection = () => {

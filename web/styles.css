@@ -311,7 +311,9 @@ main { padding: 8px 16px 40px; max-width: 1280px; margin: 0 auto; outline: none;
   border-radius: 0; text-decoration: none; color: var(--head); background: var(--surface); font-weight: 600; font-size: 0.95rem; }
 .journey-strip li a:hover, .journey-strip li a:focus-visible { background: var(--il-blue); color: #fff; }
 .journey-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; }
-.journey-actions .secondary.small { margin-bottom: 0; text-decoration: none; padding: 5px 12px; }
+.journey-cta { display: inline-flex; flex-direction: column; gap: 2px; padding: 12px 20px; font-size: 1rem; }
+.journey-cta-main { font: 800 1.15rem var(--f-head); }
+.journey-cta-sub { font: 600 0.9rem var(--f-body); }
 .tracks-path { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 4px; }
 .tracks-path a { font-weight: 700; color: var(--head); }
 
