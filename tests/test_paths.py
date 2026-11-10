@@ -158,3 +158,21 @@ def test_pg_path_store_roundtrip():
     assert s.get_path("pg-test-user")["scale"] == "L"
     assert any(r["fit"] == "iccp" for r in s.all_paths())
     assert s.delete_path("pg-test-user") and s.get_path("pg-test-user") is None
+
+
+def test_general_journey_without_answers(env):
+    learner, *_ = env
+    anon = TestClient(learner.app, base_url=BASE)
+    j = anon.get("/api/v1/paths").json()
+    assert j["general"] is True and j["here"] is None and j["focus"] == [] and j["note"] == ""
+    assert [s["position"] for s in j["stages"]] == ["none", "none", "none"]
+    assert [w["title"] for w in j["stages"][1]["workshops"]] == ["ICC webinar"]
+    assert anon.get("/api/v1/paths", params={"work": "sim"}).status_code == 400   # partial answers still rejected
+
+
+def test_front_door_has_entry_points():
+    from pathlib import Path
+    web = Path(__file__).resolve().parent.parent / "web"
+    html, js = (web / "index.html").read_text(), (web / "app.js").read_text()
+    assert 'id="nav-path"' in html and ">Learning path<" in html
+    assert "journeyBanner" in js and "Learning path: laptop to cluster" in js and "stageOfTile" in js
