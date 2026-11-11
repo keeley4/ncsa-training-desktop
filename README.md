@@ -77,7 +77,7 @@ docker compose -f dev/docker-compose.yml up --build
 - **Shelves** are learning tracks; each tile opens a **side sheet** with the description, sessions or past years, tracks, and the launch link into Learn@NCSA.
 - **Links are shareable:** `#/tile/<id>` opens a sheet, `#/shelf/<id>` shows one track as a grid. The browser Back button closes the sheet.
 - **Keyboard:** `/` search · Tab moves between shelves · arrow keys move between tiles (up/down jumps shelves) · Enter opens · Esc closes or clears search.
-- **Filters:** Open to all · Courses · Programs. **Tracks** menu jumps to a track.
+- **Filter:** "No sign-in only" under search. Every tile says "No sign-in" or "Sign in required". Shelf pages (`#/shelf/<id>`) are deep links for staff; the home page has no "See all" links.
 - **My desktop:** pin tiles from the sheet; pins are saved in this browser only (sign-in comes in Phase 3).
 - **For curators:** `curation.html` lists build warnings, courses on no track, and courses missing a description or image, with links to edit them in Learn@NCSA.
 
