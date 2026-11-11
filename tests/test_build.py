@@ -59,4 +59,5 @@ def test_real_shelves_file_parses():
     # every Moodle course id appears once across shelves and groups, except deliberate repeats
     singles = [int(r.split(":")[1]) for r in refs if r.startswith("course:")]
     grouped = [c for g in cfg["groups"].values() for c in g["courses"]]
-    assert len(set(singles) | set(grouped)) == 41
+    staged = {122}  # hidden in Learn@NCSA until reviewed (The Unix Shell); left out of the build until published
+    assert len((set(singles) | set(grouped)) - staged) == 41
