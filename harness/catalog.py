@@ -284,6 +284,8 @@ def build_catalog(source: Any, shelves_cfg: dict[str, Any], now: datetime | None
             tile_ids.append(tid)
             tiles[tid]["shelfIds"].append(sid)
         start = s.get("startHere")
+        if isinstance(start, list):  # alternatives: the first one that is on this shelf
+            start = next((r for r in start if _ref_to_tile_id(r) in tile_ids), start[0] if start else None)
         start_id = _ref_to_tile_id(start) if start else None
         if start_id and start_id not in tile_ids:
             warnings.append(f"shelf {sid}: startHere {start} is not on this shelf")
