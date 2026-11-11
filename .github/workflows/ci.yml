@@ -6,7 +6,8 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is moving to Ubuntu 26, where the Chromium install step hung for 10 minutes (11-11).
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine
