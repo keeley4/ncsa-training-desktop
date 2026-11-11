@@ -30,8 +30,9 @@ shelves:
   - id: hpc-foundations
     title: HPC foundations
     purpose: The command line, clusters, environments and file systems.
-    startHere: course:112
+    startHere: [course:122, course:112]   # 122 once it is published in Learn@NCSA, else 112
     tiles:
+      - course:122   # The Unix Shell (Software Carpentry); hidden until reviewed, so left out until then
       - course:112   # How to Use the Linux Command Line Interface (CLI)
       - course:71    # Using an HPC Cluster for Scientific Applications
       - course:77    # Customizing Your Computing Environment
@@ -127,6 +128,9 @@ tools: {}
 # tile shows the level alone. Fill the rest from the course owners.
 # summary: only for courses whose Moodle summary is empty; written from the course page contents.
 overrides:
+  course:122:
+    level: intro
+    minutes: 95   # Part 1 (setup + episodes 1-3) per the lesson's own schedule; the whole lesson is 4 h 30 min
   course:112:
     level: intro
     summary: >-

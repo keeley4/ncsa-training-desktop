@@ -222,3 +222,20 @@ def test_picks_start_where_the_stage_starts():
     # a step that has left the catalog is not brought back
     p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"}, {"course-3": "B", "course-4": "C"}, [])
     assert p["focus"] == ["course-3", "course-4"]
+
+
+def test_step_alternatives_stage_a_replacement():
+    # [course:5, course:2]: 5 replaces 2 once 5 is on the front door; until then 2 stays the step
+    conf = dict(CONF, focus_max=3, stages=[
+        {"id": "start", "title": "Start", "steps": [["course:5", "course:2"], "course:3"]},
+    ], scale_up={}, fit_stage={"iccp": "start", "cpanel": None},
+        fit_tiles={"iccp": ["course:2"]}, work_tiles={}, par_tiles={})
+    cfg = P.load_config(conf)
+    before = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"}, {"course-2": "A", "course-3": "B"}, [])
+    assert before["stages"][0]["stepIds"] == ["course-2", "course-3"] and before["stages"][0]["alsoIds"] == []
+    assert before["focus"] == ["course-2"]
+    after = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"},
+                         {"course-2": "A", "course-3": "B", "course-5": "C"}, [])
+    assert after["stages"][0]["stepIds"] == ["course-5", "course-3"]
+    assert after["stages"][0]["alsoIds"] == ["course-2"]
+    assert after["focus"] == ["course-5"]                    # a pick of the replaced course means its replacement

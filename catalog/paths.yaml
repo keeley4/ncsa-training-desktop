@@ -23,7 +23,10 @@ stages:
     title: "Basics: the command line and what a cluster is"
     summary: Before you need a cluster. No cluster account needed.
     l2c_steps: [1, 2]
-    steps: [course:112, course:71]
+    # Course 122 (The Unix Shell, Software Carpentry lesson in Learn@NCSA) replaces 112 as the first step.
+    # It is hidden until Chris reviews it; until then 112 stays the first step. Once 122 is visible,
+    # 112 moves under "Also useful" with no further edit.
+    steps: [[course:122, course:112], course:71]
     also: []
     ready: You can open a terminal, move between folders and edit a file.
     offerings: []

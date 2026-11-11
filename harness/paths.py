@@ -50,12 +50,18 @@ def load_config(source: str | Path | dict[str, Any] | None = None) -> dict[str, 
     for i, s in enumerate(raw.get("stages") or []):
         # steps = the ordered main line (first = "start with this"); also = off the main line.
         # Older files list only `tiles`: those become the steps.
-        steps = [_ref(t) for t in (s.get("steps") if s.get("steps") is not None else s.get("tiles")) or []]
-        also = [_ref(t) for t in s.get("also") or [] if _ref(t) not in steps]
+        # A step can be a list of alternatives: the first one on the front door is the step, the rest
+        # become "also". Used to stage a replacement course (hidden in Learn@NCSA until reviewed) ahead
+        # of the course it replaces, with no second edit when it is published.
+        step_refs = s.get("steps") if s.get("steps") is not None else s.get("tiles")
+        groups = [[_ref(x) for x in (t if isinstance(t, list) else [t])] for t in step_refs or []]
+        steps = [g[0] for g in groups]
+        alts = [x for g in groups for x in g[1:]]
+        also = [_ref(t) for t in s.get("also") or [] if _ref(t) not in steps and _ref(t) not in alts]
         stages.append({"id": s["id"], "label": str(s.get("label") or i + 1), "title": s["title"],
                        "summary": s.get("summary", ""), "ready": s.get("ready") or "",
                        "l2cSteps": list(s.get("l2c_steps") or []),
-                       "steps": steps, "also": also, "tiles": steps + also,
+                       "steps": steps, "also": also, "tiles": steps + alts + also, "groups": groups,
                        "offerings": list(s.get("offerings") or [])})
     ids = {s["id"] for s in stages}
     a = raw.get("answers") or {}
@@ -99,12 +105,35 @@ def _dedupe(xs: list[str]) -> list[str]:
     return [x for x in xs if not (x in seen or seen.add(x))]
 
 
+def _resolve_alternatives(cfg: dict[str, Any], tile_titles: dict[str, str]) -> dict[str, Any]:
+    """Pick each step group's first course that is on the front door; the others move to the top of "also"."""
+    stages = []
+    swap: dict[str, str] = {}
+    for s in cfg["stages"]:
+        groups = s.get("groups") or [[t] for t in s["steps"]]
+        steps, moved = [], []
+        for g in groups:
+            live = [t for t in g if t in tile_titles]
+            pick = live[0] if live else g[0]
+            steps.append(pick)
+            moved += [t for t in g if t != pick]
+        also = moved + [t for t in s["also"] if t not in moved]
+        stages.append({**s, "steps": steps, "also": also, "tiles": steps + also})
+        for g in groups:  # a pick that names a replaced course means its replacement
+            pick = next((t for t in g if t in tile_titles), None)
+            for t in g:
+                if pick and t != pick:
+                    swap[t] = pick
+    return {**cfg, "stages": stages, "swap": swap}
+
+
 def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dict[str, str],
                workshops: list[dict[str, Any]], now: datetime | None = None) -> dict[str, Any]:
     """Stages in Laptop to Cluster order, the stage the learner is at, and up to focus_max "do these next" tiles.
     Tiles not on the published front door are dropped, so a course that leaves the catalog drops out.
     With no answers (ans None or {}) this is the general journey: every stage, no "here", no focus."""
     now = now or datetime.now(timezone.utc)
+    cfg = _resolve_alternatives(cfg, tile_titles)
     ans = ans or {}
     general = not ans
     here = None if general else cfg["fit_stage"].get(ans["fit"])
@@ -147,7 +176,7 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dic
             focus += cfg["par_tiles"].get(ans["par"], [])
         if not focus:
             focus = next(s["steps"] for s in cfg["stages"] if s["id"] == here)
-    focus = [t for t in _dedupe(focus) if t in tile_titles]
+    focus = [t for t in _dedupe([cfg.get("swap", {}).get(t, t) for t in focus]) if t in tile_titles]
     # A pick partway along a stage brings in the steps before it, so the picks start where the stage starts
     # ("Start with this") and "take these in order" agrees with the full path.
     filled: list[str] = []
