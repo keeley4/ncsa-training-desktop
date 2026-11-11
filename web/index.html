@@ -24,19 +24,11 @@
     </a>
     <form class="search" role="search" id="search-form">
       <label for="q" class="visually-hidden">Search courses and programs</label>
-      <input id="q" type="search" placeholder="Search ( / )" autocomplete="off" spellcheck="false">
+      <input id="q" type="search" placeholder="Search courses" autocomplete="off" spellcheck="false">
+      <label class="nosignin"><input type="checkbox" id="f-open"> No sign-in only</label>
     </form>
-    <div class="filters" role="group" aria-label="Filters">
-      <button type="button" class="chip" data-filter="open" aria-pressed="false">Open to all</button>
-      <button type="button" class="chip" data-filter="course" aria-pressed="false">Courses</button>
-      <button type="button" class="chip" data-filter="program" aria-pressed="false">Programs</button>
-    </div>
     <a id="nav-workshops" class="chip nav-link" href="#/workshops" hidden>Workshops</a>
     <a id="nav-path" class="chip nav-link" href="#/path" hidden>Learning path</a>
-    <details class="tracks" id="tracks">
-      <summary>Tracks</summary>
-      <ul id="tracks-list" class="tracks-list"></ul>
-    </details>
     <div id="account" class="account" hidden></div>
   </header>
 
@@ -52,7 +44,6 @@
         <p id="sheet-type" class="badge"></p>
         <button type="button" id="sheet-close" class="icon-btn" aria-label="Close">×</button>
       </div>
-      <div id="sheet-art" class="sheet-art" aria-hidden="true"></div>
       <h2 id="sheet-title" tabindex="-1"></h2>
       <p id="sheet-meta" class="meta"></p>
       <p id="sheet-summary" class="sheet-summary"></p>

@@ -9,7 +9,7 @@
 "use strict";
 
 (() => {
-  const { loadConfig, api, el, tileArt, TYPE_LABEL, store, footer } = window.NCSA;
+  const { loadConfig, api, el, TYPE_LABEL, store, footer } = window.NCSA;
   const $ = (id) => document.getElementById(id);
   const PIN_KEY = "ncsa-training:pins";
 
@@ -32,15 +32,25 @@
   };
 
   // ---------- helpers ----------
-  const hueFor = (tile) => {
-    const first = tile.shelfIds && tile.shelfIds[0];
-    return state.shelfIndex.has(first) ? state.shelfIndex.get(first) : 7;
-  };
   const shelfTitle = (id) => (state.shelves.find((s) => s.id === id) || {}).title || id;
   const LEVEL_LABEL = { intro: "Intro", intermediate: "Intermediate", advanced: "Advanced" };
   const duration = (m) => (!m ? "" : m < 60 ? `${m} min` : `${Math.round((m / 60) * 2) / 2} h`.replace(".5", "½"));
   // "Intro · 90 min": what a tile is for and what it costs. Empty when neither is curated yet.
   const levelLine = (t) => [LEVEL_LABEL[t.level], t.minutes ? `about ${duration(t.minutes)}` : ""].filter(Boolean).join(" · ");
+  // Whether Learn@NCSA lets a visitor in without signing in. Said on every course and program, so nobody
+  // finds out at the Moodle enrol page.
+  const ACCESS = { open: "No sign-in", closed: "Sign in required" };
+  const accessText = (t) => (t.type === "tool" ? "" : t.guestAccess ? ACCESS.open : ACCESS.closed);
+  // Tile line: level · time · access. Without a curated level, the Moodle category, unless it only repeats the title.
+  // The access words never break across lines.
+  const tileLine = (t) => {
+    const cat = t.category && t.category.name && t.category.name !== t.title ? t.category.name : "";
+    const head = levelLine(t) || cat;
+    const acc = accessText(t);
+    if (!head && !acc) return null;
+    return el("span", { class: `tile-cat${levelLine(t) ? " tile-level" : ""}` },
+      head, head && acc ? " · " : "", acc ? el("span", { class: "access", text: acc }) : null);
+  };
   // Status messages are for screen readers once the catalog has loaded (role=status, polite).
   const announce = (text) => { $("status").textContent = text; };
 
@@ -150,7 +160,7 @@
       text: "Subscribe to the calendar feed" });
     feed.addEventListener("click", () => usage("ics_download", "feed"));
     $("view").replaceChildren(
-      el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })),
+      el("p", { class: "crumb" }, el("a", { href: "#/", text: "← Home" })),
       section("workshops", "Live workshops", "Online workshops led by NCSA staff. Registration opens the workshop's form.",
         up.length ? workshopList(up) : el("p", { class: "empty", text: "No upcoming workshops are scheduled right now." }), feed),
       past.length ? section("past-workshops", "Past workshops", "Recordings are linked when available.",
@@ -324,7 +334,11 @@
     }
     const focus = path.focus.map((id) => state.tiles.get(id)).filter(Boolean);
     const fs = path.focusStage || {};
-    if (focus.length) view.append(section("path-next", "Do these next", "",
+    const walled = focus.filter((t) => t.type !== "tool" && !t.guestAccess).length;
+    const signNote = !walled || linked() ? ""
+      : walled === focus.length ? "All of these need a free sign-in on Learn@NCSA with your university login."
+        : "Courses marked “Sign in required” need a free sign-in on Learn@NCSA with your university login.";
+    if (focus.length) view.append(section("path-next", "Do these next", signNote,
       tileList(focus, { label: "Do these next", ordered: true,
         note: (t, i) => `${i + 1}${fs[t.id] ? ` · Stage ${fs[t.id]}` : ""}` })));
     const fw = pathWorkshops(path.focusWorkshops);
@@ -407,18 +421,12 @@
   const tileCard = (tile, { startHere = false, note = "" } = {}) => {
     const btn = el("button", { class: "tile", type: "button", "data-tile": tile.id, tabindex: "-1", "aria-haspopup": "dialog" });
     const badges = el("span", { class: "tile-badges" },
-      el("span", { class: "badge", text: TYPE_LABEL[tile.type] || tile.type }),
-      tile.guestAccess ? el("span", { class: "badge open", text: "Open to all" }) : null,
+      tile.type !== "course" ? el("span", { class: "badge", text: TYPE_LABEL[tile.type] || tile.type }) : null,
       startHere ? el("span", { class: "badge start", text: "Start here" }) : null,
       note ? el("span", { class: `badge ${/^(Start|1\b)/.test(note) ? "start" : "step"}`, text: note }) : null,
       progressOf(tile) ? el("span", { class: "badge mine", text: progressText(progressOf(tile)) }) : null,
       state.pins.includes(tile.id) ? el("span", { class: "badge pinned", text: "Pinned" }) : null);
-    btn.append(
-      tileArt(tile, hueFor(tile)),
-      el("span", { class: "tile-title", text: tile.title }),
-      levelLine(tile) ? el("span", { class: "tile-cat tile-level", text: levelLine(tile) })
-        : tile.category ? el("span", { class: "tile-cat", text: tile.category.name }) : null,
-      badges);
+    btn.append(el("span", { class: "tile-title", text: tile.title }), tileLine(tile), badges);
     btn.addEventListener("click", () => openTile(tile.id, true));
     return el("li", {}, btn);
   };
@@ -461,29 +469,26 @@
     for (const shelf of state.shelves) {
       const tiles = shelf.tileIds.map((id) => state.tiles.get(id)).filter(Boolean);
       if (!tiles.length) continue;
-      const more = el("a", { class: "see-all", href: `#/shelf/${shelf.id}`, text: `See all ${tiles.length}` });
-      more.setAttribute("aria-label", `See all ${tiles.length} in ${shelf.title}`);
-      view.append(section(shelf.id, shelf.title, shelf.purpose, tileList(tiles, { label: shelf.title, startHere: shelf.startHere }), more));
+      // Every tile is already on the row; #/shelf/<id> stays as a link staff can send.
+      view.append(section(shelf.id, shelf.title, shelf.purpose, tileList(tiles, { label: shelf.title, startHere: shelf.startHere })));
     }
   };
 
   const renderShelf = (id) => {
     const shelf = state.shelves.find((s) => s.id === id);
     if (!shelf) {
-      announce("That track was not found. Showing all tracks.");
+      announce("That shelf was not found. Showing all courses.");
       return renderHome();
     }
     const tiles = shelf.tileIds.map((t) => state.tiles.get(t)).filter(Boolean);
     const view = $("view");
     view.replaceChildren(
-      el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All tracks" })),
+      el("p", { class: "crumb" }, el("a", { href: "#/", text: "← All courses" })),
       section(shelf.id, shelf.title, shelf.purpose, tileList(tiles, { grid: true, label: shelf.title, startHere: shelf.startHere })));
   };
 
   const matches = (t) => {
     if (state.filters.has("open") && !t.guestAccess) return false;
-    const types = ["course", "program"].filter((f) => state.filters.has(f));
-    if (types.length && !types.includes(t.type)) return false;
     if (!state.query) return true;
     const hay = [t.title, t.summary, t.category && t.category.name, ...(t.children || []).map((c) => c.title),
       ...(t.shelfIds || []).map(shelfTitle)].join(" ").toLowerCase();
@@ -494,7 +499,7 @@
     const hits = [...state.tiles.values()].filter(matches);
     const bits = [];
     if (state.query) bits.push(`“${state.query}”`);
-    for (const f of state.filters) bits.push({ open: "open to all", course: "courses", program: "programs" }[f]);
+    if (state.filters.has("open")) bits.push("no sign-in only");
     const title = `${hits.length} result${hits.length === 1 ? "" : "s"}`;
     const clear = el("button", { type: "button", class: "secondary small", text: "Clear search and filters" });
     clear.addEventListener("click", clearSearch);
@@ -522,7 +527,7 @@
     state.query = "";
     $("q").value = "";
     state.filters.clear();
-    document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+    $("f-open").checked = false;
     renderView();
     announce("Search cleared.");
     $("q").focus();
@@ -535,15 +540,13 @@
     state.currentTile = tile.id;
     $("sheet-type").textContent = TYPE_LABEL[tile.type] || tile.type;
     $("sheet-title").textContent = tile.title;
-    $("sheet-art").replaceChildren(tileArt(tile, hueFor(tile), "tile-art large", 64));
     const bits = [];
-    if (tile.category) bits.push(tile.category.name);
     if (tile.level) bits.push(LEVEL_LABEL[tile.level] || tile.level);
     if (tile.minutes) bits.push(`about ${duration(tile.minutes)}`);
     const mine = progressOf(tile);
     if (mine) bits.push(`You're enrolled: ${progressText(mine).toLowerCase()}`);
-    else if (linked() && tile.type !== "tool") bits.push(tile.guestAccess ? "Open to everyone" : "Start enrolls you if the course is open to everyone");
-    else bits.push(tile.guestAccess ? "Open to everyone, no sign-in needed" : "Sign in to Learn@NCSA to enroll");
+    else if (linked() && tile.type !== "tool") bits.push(tile.guestAccess ? ACCESS.open : "Start enrolls you if the course allows it");
+    else if (tile.type !== "tool") bits.push(tile.guestAccess ? "No sign-in needed" : "Sign in required: Learn@NCSA asks for your university login");
     $("sheet-meta").textContent = bits.join(" · ");
     $("sheet-summary").textContent = tile.summary || "No description yet.";
     const kids = tile.children || [];
@@ -551,19 +554,11 @@
     $("sheet-children-title").textContent = tile.type === "program" ? "Inside this program" : "Sessions";
     $("sheet-children-list").replaceChildren(...kids.map((k) =>
       el("li", {}, el("a", { href: k.url, text: k.title, target: "_blank", rel: "noopener" }),
-        k.guestAccess ? el("span", { class: "badge open", text: "Open to all" }) : null)));
+        el("span", { class: "child-access", text: ` · ${k.guestAccess ? ACCESS.open : ACCESS.closed}` }))));
     const tracks = $("sheet-tracks");
-    tracks.replaceChildren();
-    if (tile.shelfIds && tile.shelfIds.length) {
-      tracks.append("Tracks: ");
-      tile.shelfIds.forEach((sid, i) => {
-        if (i) tracks.append(", ");
-        tracks.append(el("a", { href: `#/shelf/${sid}`, text: shelfTitle(sid) }));
-      });
-    }
+    tracks.replaceChildren(); // the shelf the learner came from is not repeated here; only the path stage
     const onPath = stageOfTile(tile.id);
     if (onPath) {
-      if (tracks.childNodes.length) tracks.append(el("br"));
       tracks.append(el("a", { href: "#/path?view=all", text: `Stage ${onPath.no} of the learning path: ${onPath.stage.title}` }));
     }
     const launch = $("sheet-launch");
@@ -696,9 +691,8 @@
       state.query = "";
       $("q").value = "";
       state.filters.clear();
-      document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+      $("f-open").checked = false;
     }
-    $("tracks").open = false;
     renderView();
     if (changed) {
       window.scrollTo(0, 0);
@@ -721,14 +715,11 @@
     const first = document.querySelector("#view .tile");
     if (first) first.focus();
   });
-  document.querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
-    const f = chip.dataset.filter;
-    if (state.filters.has(f)) state.filters.delete(f);
-    else state.filters.add(f);
-    chip.setAttribute("aria-pressed", String(state.filters.has(f)));
-    if (state.filters.has(f)) usage("filter", f);
+  $("f-open").addEventListener("change", (e) => {
+    if (e.target.checked) { state.filters.add("open"); usage("filter", "open"); }
+    else state.filters.delete("open");
     renderView();
-  }));
+  });
 
   // ---------- keyboard ----------
   const visibleTiles = () => [...document.querySelectorAll("#view .tile")];
@@ -821,8 +812,6 @@
       state.shelves = shelves.items;
       state.shelves.forEach((s, i) => state.shelfIndex.set(s.id, i));
       state.pins = (store.get(PIN_KEY, []) || []).filter((id) => state.tiles.has(id));
-      $("tracks-list").replaceChildren(...state.shelves.map((s) =>
-        el("li", {}, el("a", { href: `#/shelf/${s.id}`, text: s.title }))));
       $("footer-meta").textContent = footer(meta);
       await renderAccount();
       await loadProgress();
@@ -834,10 +823,6 @@
         try { state.journey = await api("/paths"); } catch (_) { state.journey = null; }
         const navPath = $("nav-path");
         if (navPath) navPath.hidden = !state.journey;
-        if (state.journey) {
-          $("tracks-list").prepend(el("li", { class: "tracks-path" },
-            el("a", { href: "#/path?view=all", text: "Learning path: laptop to cluster" })));
-        }
         usage("visit", ((location.hash || "#/").split("/")[1] || "home").split("?")[0]);
       }
       $("status").textContent = "";

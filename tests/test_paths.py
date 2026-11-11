@@ -176,7 +176,7 @@ def test_front_door_has_entry_points():
     web = Path(__file__).resolve().parent.parent / "web"
     html, js = (web / "index.html").read_text(), (web / "app.js").read_text()
     assert 'id="nav-path"' in html and ">Learning path<" in html
-    assert "journeyBanner" in js and "Learning path: laptop to cluster" in js and "stageOfTile" in js
+    assert "journeyBanner" in js and "See the whole learning path" in js and "stageOfTile" in js
 
 
 def test_stage_steps_also_label_and_focus_order():
@@ -205,5 +205,20 @@ def test_real_paths_yaml_resolves_and_orders():
     titles = {t: t for s in cfg["stages"] for t in s["tiles"]}
     p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp", "par": "yes"}, titles, [])
     assert p["here"] == "cluster"
-    assert p["focus"] == ["course-39", "course-72", "course-43"]
+    # MPI (4a step 2) brings in 4a's "Start with this" (course 40), so the picks follow the path's own order
+    assert p["focus"] == ["course-39", "course-40", "course-72"]
     assert [p["focusStage"][t] for t in p["focus"]] == ["3", "4a", "4a"]
+
+
+def test_picks_start_where_the_stage_starts():
+    conf = dict(CONF, focus_max=3, stages=[
+        {"id": "cluster", "title": "Cluster", "steps": ["course:2", "course:3", "course:4"]},
+    ], scale_up={}, fit_stage={"iccp": "cluster", "cpanel": None},
+        fit_tiles={}, work_tiles={"sim": ["course:4"]}, par_tiles={})
+    cfg = P.load_config(conf)
+    titles = {"course-2": "A", "course-3": "B", "course-4": "C"}
+    p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"}, titles, [])
+    assert p["focus"] == ["course-2", "course-3", "course-4"]
+    # a step that has left the catalog is not brought back
+    p = P.build_path(cfg, {"work": "sim", "scale": "S", "fit": "iccp"}, {"course-3": "B", "course-4": "C"}, [])
+    assert p["focus"] == ["course-3", "course-4"]

@@ -21,7 +21,7 @@ stages:
   - id: start
     label: "1"
     title: "Basics: the command line and what a cluster is"
-    summary: Before you need a cluster. No account needed.
+    summary: Before you need a cluster. No cluster account needed.
     l2c_steps: [1, 2]
     steps: [course:112, course:71]
     also: []

@@ -72,7 +72,7 @@ def test_home_shows_shelves_and_footer(page):
     assert page.locator("#view .shelf h2").all_inner_texts() == ["Get started", "Programming"]
     assert "6 courses from Learn@NCSA (dev)" in page.inner_text("#footer-meta")
     assert page.locator(".tile[data-tile='course-2'] .badge.start").count() == 1
-    assert page.locator(".tile[data-tile='course-2'] .badge.open").count() == 1
+    assert page.inner_text(".tile[data-tile='course-2'] .tile-cat").endswith("No sign-in")
 
 
 def test_one_tab_stop_per_row_and_arrow_keys(page):
@@ -95,7 +95,7 @@ def test_sheet_open_close_returns_focus_and_history(page):
     page.wait_for_selector("#sheet[open]")
     assert hash_of(page) == "#/tile/course-2"
     assert page.inner_text("#sheet-title") == "Intro to the Command Line"
-    assert "Open to everyone" in page.inner_text("#sheet-meta")
+    assert "No sign-in needed" in page.inner_text("#sheet-meta")
     assert page.get_attribute("#sheet-launch", "href") == "https://moodle.example.org/course/view.php?id=2"
     assert page.evaluate("document.activeElement.id") == "sheet-title"
     page.keyboard.press("Escape")
@@ -128,22 +128,34 @@ def test_search_filters_and_clear(page):
     assert [t.get_attribute("data-tile") for t in page.locator("#view .tile").all()] == ["course-4"]
     page.keyboard.press("Escape")
     page.wait_for_selector("#view .shelf h2:text('Get started')")
-    page.click(".chip[data-filter='open']")
+    page.check("#f-open")
     ids = sorted(t.get_attribute("data-tile") for t in page.locator("#view .tile").all())
     assert ids == ["course-2", "course-9", "tool-docs"]
-    assert page.get_attribute(".chip[data-filter='open']", "aria-pressed") == "true"
-    page.click(".chip[data-filter='program']")
-    assert page.locator("#view .tile").count() == 0
+    assert "no sign-in only" in page.inner_text("#view .purpose")
+    page.fill("#q", "zzzz")
+    page.wait_for_selector("#view .empty")
     assert "Nothing matches" in page.inner_text("#view")
+    page.click("text=Clear search and filters")
+    assert not page.is_checked("#f-open")
 
 
-def test_shelf_view_and_tracks_menu(page):
-    page.click(".tracks summary")
-    page.click(".tracks-list a:text('Programming')")
+def test_tiles_say_whether_sign_in_is_needed(page):
+    # every course and program tile says it, so nobody finds out at the Moodle enrol page
+    for t in page.locator("#view .tile").all():
+        line = t.locator(".tile-cat").inner_text() if t.locator(".tile-cat").count() else ""
+        if t.get_attribute("data-tile").startswith("tool-"):
+            continue
+        assert line.endswith("No sign-in") or line.endswith("Sign in required"), line
+    # header has no Courses/Programs/Tracks controls and home has no "See all" links
+    assert page.locator(".chip[data-filter], #tracks, .see-all").count() == 0
+    assert page.locator(".tile-art").count() == 0
+
+
+def test_shelf_view_is_a_deep_link(page, site):
+    page.goto(site + "#/shelf/programming")
     page.wait_for_selector(".crumb")
-    assert hash_of(page) == "#/shelf/programming"
+    assert page.inner_text(".crumb") == "← All courses"
     assert page.locator("#view .tiles.grid .tile").count() == 2
-    assert not page.evaluate("document.getElementById('tracks').open")
 
 
 def test_pins_persist(page, site):
