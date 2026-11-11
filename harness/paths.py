@@ -148,6 +148,15 @@ def build_path(cfg: dict[str, Any], ans: dict[str, str] | None, tile_titles: dic
         if not focus:
             focus = next(s["steps"] for s in cfg["stages"] if s["id"] == here)
     focus = [t for t in _dedupe(focus) if t in tile_titles]
+    # A pick partway along a stage brings in the steps before it, so the picks start where the stage starts
+    # ("Start with this") and "take these in order" agrees with the full path.
+    filled: list[str] = []
+    for t in focus:
+        w = where.get(t)
+        if w and w[1] == 0:
+            filled += [s for s in cfg["stages"][w[0]]["steps"][: w[2]] if s in tile_titles]
+        filled.append(t)
+    focus = _dedupe(filled)
     # Journey order, so "do these next" reads as a sequence and agrees with "you are here".
     # Tiles on no stage keep their candidate order, after the staged ones.
     order = {t: i for i, t in enumerate(focus)}
